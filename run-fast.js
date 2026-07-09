@@ -3,6 +3,8 @@
 // search results (which already carry stars/description/homepage/etc.),
 // skipping the per-repo enrichment stage that trips GitHub's secondary
 // rate limit at this candidate volume.
+// Usage: node run-fast.js [--keywords "kw1, kw2"] — same query resolution
+// as run.js (keywords, KEYWORDS env, or config/queries.json fallback).
 
 const fs = require('fs');
 const path = require('path');

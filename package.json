@@ -1,13 +1,13 @@
 {
   "name": "github-competitors-list",
   "version": "1.0.0",
-  "description": "",
+  "description": "Keyword-driven GitHub prospecting: discover, enrich, and snapshot repositories in any market segment.",
   "main": "run.js",
   "scripts": {
     "start": "node run.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["github", "prospecting", "competitive-intelligence", "market-research"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
