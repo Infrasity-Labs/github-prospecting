@@ -1,0 +1,15 @@
+{
+  "affaan-m/ECC": "agent harness, not memory layer",
+  "bytedance/deer-flow": "super-agent harness",
+  "ruvnet/ruflo": "agent meta-harness",
+  "zhayujie/CowAgent": "agent framework",
+  "langchain-ai/langchain": "framework, memory is a submodule",
+  "run-llama/llama_index": "RAG framework",
+  "microsoft/autogen": "agent framework",
+  "crewAIInc/crewAI": "agent framework",
+  "666ghj/MiroFish": "swarm intelligence engine",
+  "pingcap/tidb": "database marketing to agent workloads",
+  "dolthub/dolt": "versioned database",
+  "alibaba/zvec": "vector database",
+  "neomjs/neo": "frontend framework"
+}

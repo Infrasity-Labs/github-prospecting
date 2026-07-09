@@ -1,0 +1,13 @@
+{
+  "minStars": 10,
+  "maxMonthsSincePush": 6,
+  "searchPerPage": 100,
+  "searchDelayMsAuthed": 2500,
+  "searchDelayMsUnauthed": 7000,
+  "enrichConcurrency": 5,
+  "commitActivityMaxRetries": 3,
+  "commitActivityRetryDelayMs": 2000,
+  "recentCommitsPerPage": 20,
+  "releasesPerPage": 10,
+  "contributorsPerPage": 30
+}

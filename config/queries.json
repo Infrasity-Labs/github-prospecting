@@ -1,0 +1,22 @@
+[
+  "topic:agent-memory",
+  "topic:llm-memory",
+  "topic:memory-management topic:llm",
+  "\"memory layer\" llm in:description",
+  "\"memory layer\" agents in:description",
+  "\"long-term memory\" agent in:description",
+  "\"memory for ai agents\" in:description",
+  "\"agent memory\" in:description",
+  "topic:ai-agent",
+  "topic:llm-agent",
+  "topic:agentic-ai",
+  "topic:ai-agents",
+  "\"agent framework\" in:description",
+  "\"coding agent\" in:description",
+  "\"ai agent\" in:description",
+  "\"autonomous agent\" in:description",
+  "\"multi-agent\" llm in:description",
+  "\"agent orchestration\" in:description",
+  "\"stateful agent\" in:description",
+  "\"persistent context\" agent in:description"
+]

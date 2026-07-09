@@ -1,0 +1,410 @@
+{
+  "info": {
+    "name": "GitHub Agent-Memory/Agent Repo Search",
+    "description": "Runs the same GitHub search queries as config/queries.json directly against the GitHub REST Search API. Each request returns raw JSON (items[] = matching repos) with no filtering applied. Set the collection variable `github_token` to a GitHub personal access token to raise your rate limit (5000/hr vs 60/hr unauthenticated).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "github_token", "value": "", "type": "string" },
+    { "key": "per_page", "value": "100", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{github_token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "topic:agent-memory",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=topic%3Aagent-memory&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "topic:agent-memory" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "topic:llm-memory",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=topic%3Allm-memory&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "topic:llm-memory" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "topic:memory-management topic:llm",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=topic%3Amemory-management+topic%3Allm&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "topic:memory-management topic:llm" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"memory layer\" llm in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22memory+layer%22+llm+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"memory layer\" llm in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"memory layer\" agents in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22memory+layer%22+agents+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"memory layer\" agents in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"long-term memory\" agent in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22long-term+memory%22+agent+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"long-term memory\" agent in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"memory for ai agents\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22memory+for+ai+agents%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"memory for ai agents\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"agent memory\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22agent+memory%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"agent memory\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "topic:ai-agent",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=topic%3Aai-agent&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "topic:ai-agent" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "topic:llm-agent",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=topic%3Allm-agent&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "topic:llm-agent" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "topic:agentic-ai",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=topic%3Aagentic-ai&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "topic:agentic-ai" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "topic:ai-agents",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=topic%3Aai-agents&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "topic:ai-agents" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"agent framework\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22agent+framework%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"agent framework\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"coding agent\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22coding+agent%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"coding agent\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"ai agent\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22ai+agent%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"ai agent\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"autonomous agent\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22autonomous+agent%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"autonomous agent\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"multi-agent\" llm in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22multi-agent%22+llm+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"multi-agent\" llm in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"agent orchestration\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22agent+orchestration%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"agent orchestration\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"stateful agent\" in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22stateful+agent%22+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"stateful agent\" in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "\"persistent context\" agent in:description",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/search/repositories?q=%22persistent+context%22+agent+in%3Adescription&sort=stars&order=desc&per_page={{per_page}}",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["search", "repositories"],
+          "query": [
+            { "key": "q", "value": "\"persistent context\" agent in:description" },
+            { "key": "sort", "value": "stars" },
+            { "key": "order", "value": "desc" },
+            { "key": "per_page", "value": "{{per_page}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get single repo detail (example: mem0ai/mem0)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/vnd.github+json" }],
+        "url": {
+          "raw": "https://api.github.com/repos/mem0ai/mem0",
+          "protocol": "https",
+          "host": ["api", "github", "com"],
+          "path": ["repos", "mem0ai", "mem0"]
+        }
+      }
+    }
+  ]
+}
