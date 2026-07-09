@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// run.js — orchestrates discover -> enrich -> store.
+// run.js - orchestrates discover -> enrich -> store.
 // Usage: GITHUB_TOKEN=ghp_xxx node run.js [--keywords "kw1, kw2"] [--no-store]
 // --keywords (or KEYWORDS env) generates search queries for any market;
 // without it, the hand-tuned list in config/queries.json is used.
