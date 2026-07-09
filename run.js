@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // run.js — orchestrates discover -> enrich -> store.
-// Usage: GITHUB_TOKEN=ghp_xxx node run.js [--discover-only] [--no-store]
+// Usage: GITHUB_TOKEN=ghp_xxx node run.js [--keywords "kw1, kw2"] [--no-store]
+// --keywords (or KEYWORDS env) generates search queries for any market;
+// without it, the hand-tuned list in config/queries.json is used.
 // Stages run in sequence as one command; there's no separate CLI flag to
 // run enrich/store independently since they depend on discover's output.
 // --no-store skips writing competitors.db/competitors.csv and prints the
