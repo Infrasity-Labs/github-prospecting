@@ -15,587 +15,530 @@ Search, enrich, snapshot. Watch a competitive landscape evolve over time and cat
 
 ---
 
-## Table of contents
-
-- [Overview](#overview)
-- [Results](#results)
-- [How it works](#how-it-works)
-- [Quick start](#quick-start)
-- [Usage](#usage)
-  - [Full pipeline](#full-pipeline)
-  - [Fast mode](#fast-mode-discover-only)
-- [Configuration](#configuration)
-- [Data model](#data-model)
-- [Project layout](#project-layout)
-- [Rate limits](#rate-limits)
-- [Troubleshooting](#troubleshooting)
-
-## Overview
-
-GitHub Prospecting is a small, dependency-light Node.js pipeline for competitive intelligence on GitHub. Point it at **any market segment** with `--keywords "your, terms"` - queries are generated automatically - or hand-tune a query list for precision (the repo ships with a tuned list targeting the **AI agent / LLM memory** space as a working example). Then run it on a schedule. Each run:
-
-1. Discovers every public repository matching your queries
-2. Enriches each candidate with deep metadata (activity, contributors, releases, README)
-3. Persists a **dated snapshot** to SQLite and exports a star-ranked CSV
-
-Because every run is a snapshot keyed by date, the database becomes a time series: you can chart star growth, spot momentum shifts, and get an explicit list of repos that are **new since the last run**.
-
-**Design principles**
-
-- **Config over code.** Retargeting to a different market is one `--keywords` flag; deeper tuning (queries, thresholds, exclusions) lives in three JSON files. Zero code changes either way.
-- **Degrade, never abort.** A failed endpoint yields a `null` field, not a crashed run. Long runs survive rate limits by sleeping until the limit resets.
-- **One dependency.** `better-sqlite3` for storage. Everything else is Node.js built-ins.
-
 ## Results
 
-Latest snapshot (2026-07-09), from a run with `--keywords "llm observability"`. Prospects are grouped by the search query that discovered them, so you can see exactly what each keyword-derived query surfaces. Repos are deduplicated across queries - each appears only under the query that found it first. Regenerated from `competitors.csv` after each run.
+Latest snapshot (2026-07-09), from a run with `--keywords "agent memory, ai memory, memory layer"`. Prospects are grouped by the search query that discovered them. Repos are deduplicated across queries - each appears only under the query that found it first. Regenerated from `competitors.csv` after each run.
 
-### `topic:llm-observability` - 100 prospects
-
-<details>
-<summary><strong>Show table</strong></summary>
-
-| # | Repository | Stars | Language | Last push | Description | Website |
-| ---: | --- | ---: | --- | --- | --- | --- |
-| 1 | [langfuse/langfuse](https://github.com/langfuse/langfuse) | 30,764 | TypeScript | 2026-07-08 | 🪢 Open source AI engineering platform: LLM evals, observability, metrics, prompt management, playground, datasets. Integrates with OpenTelemetry, LangChain, OpenAI SDK, LiteLLM, and more. 🍊YC W23 | [langfuse.com](https://langfuse.com) |
-| 2 | [comet-ml/opik](https://github.com/comet-ml/opik) | 20,442 | Python | 2026-07-09 | Debug, evaluate, and monitor your LLM applications, RAG systems, and agentic workflows with comprehensive tracing, automated evaluations, and production-ready dashboards. | [www.comet.com/docs/opik](https://www.comet.com/docs/opik/) |
-| 3 | [VoltAgent/voltagent](https://github.com/VoltAgent/voltagent) | 9,995 | TypeScript | 2026-07-09 | AI Agent Engineering Platform built on an Open Source TypeScript AI Agent Framework | [voltagent.dev](https://voltagent.dev) |
-| 4 | [mnfst/manifest](https://github.com/mnfst/manifest) | 7,221 | TypeScript | 2026-07-08 | Connect Your Agents And Harnesses With Any Provider 🦚 | [manifest.build](https://manifest.build) |
-| 5 | [maximhq/bifrost](https://github.com/maximhq/bifrost) | 6,379 | Go | 2026-07-09 | Fastest enterprise AI gateway (50x faster than LiteLLM) with adaptive load balancer, cluster mode, guardrails, 1000+ models support & <100 µs overhead at 5k RPS. | [www.getmaxim.ai/bifrost](https://www.getmaxim.ai/bifrost) |
-| 6 | [Helicone/helicone](https://github.com/Helicone/helicone) | 5,922 | TypeScript | 2026-07-05 | 🧊 Open source LLM observability platform. One line of code to monitor, evaluate, and experiment. YC W23 🍓 | [www.helicone.ai](https://www.helicone.ai) |
-| 7 | [coze-dev/coze-loop](https://github.com/coze-dev/coze-loop) | 5,597 | Go | 2026-07-08 | Next-generation AI Agent Optimization Platform: Cozeloop addresses challenges in AI agent development by providing full-lifecycle management capabilities from development, debugging, and evaluation to monitoring. |  |
-| 8 | [latitude-dev/latitude-llm](https://github.com/latitude-dev/latitude-llm) | 4,397 | TypeScript | 2026-07-09 | Latitude is the open-source ai monitoring platform. | [latitude.so](https://latitude.so) |
-| 9 | [pydantic/logfire](https://github.com/pydantic/logfire) | 4,355 | Python | 2026-07-09 | AI observability platform for production LLM and agent systems. | [pydantic.dev/logfire](https://pydantic.dev/logfire/) |
-| 10 | [Agenta-AI/agenta](https://github.com/Agenta-AI/agenta) | 4,277 | TypeScript | 2026-07-08 | The open-source LLMOps platform: prompt playground, prompt management, LLM evaluation, and LLM observability all in one place. | [www.agenta.ai](http://www.agenta.ai) |
-| 11 | [memodb-io/Acontext](https://github.com/memodb-io/Acontext) | 3,571 | JavaScript | 2026-06-30 | Agent Skills as a Memory Layer | [acontext.io](https://acontext.io) |
-| 12 | [lmnr-ai/lmnr](https://github.com/lmnr-ai/lmnr) | 3,073 | TypeScript | 2026-07-09 | Laminar - open-source observability platform purpose-built for AI agents. YC S24. | [laminar.sh](https://laminar.sh) |
-| 13 | [JudgmentLabs/judgeval](https://github.com/JudgmentLabs/judgeval) | 1,038 | Python | 2026-07-07 | The Continuous-Improvement Stack for Agents. Our environment data and evals power agent improvement and monitoring. | [judgmentlabs.ai](https://judgmentlabs.ai/) |
-| 14 | [traceroot-ai/traceroot](https://github.com/traceroot-ai/traceroot) | 657 | TypeScript | 2026-07-09 | TraceRoot - open-source observability and self-healing layer for AI agents. YC S25 | [traceroot.ai](https://traceroot.ai) |
-| 15 | [evilmartians/agent-prism](https://github.com/evilmartians/agent-prism) | 369 | TypeScript | 2026-07-08 | React components for visualizing traces from AI agents | [storybook.agent-prism.evilmartians.io/?utm_source=github&utm_medium=social](https://storybook.agent-prism.evilmartians.io/?utm_source=github&utm_medium=social) |
-| 16 | [Justin0504/Aegis](https://github.com/Justin0504/Aegis) | 363 | TypeScript | 2026-07-08 | Runtime policy enforcement for AI agents. Cryptographic audit trail, human-in-the-loop approvals, kill switch. Zero code changes. |  |
-| 17 | [palico-ai/palico-ai](https://github.com/palico-ai/palico-ai) | 343 | TypeScript | 2024-11-26 | Build, Improve Performance, and Productionize your AI Application | [www.palico.ai](https://www.palico.ai/) |
-| 18 | [databufflabs/databuff](https://github.com/databufflabs/databuff) | 222 | Vue | 2026-07-08 | AI-native OpenTelemetry APM with multi-agent troubleshooting. 5-minute Docker self-host. | [databuff.ai](https://databuff.ai) |
-| 19 | [taichuy/1flowbase](https://github.com/taichuy/1flowbase) | 193 | Rust | 2026-07-09 | Open-source AI gateway for local agent clients: publish fusion-style multi-model workflows as OpenAI/Claude-compatible virtual models with traces, tokens, latency, and cost visibility. |  |
-| 20 | [langfuse/oss-llmops-stack](https://github.com/langfuse/oss-llmops-stack) | 139 |  | 2025-02-15 | Modular, open source LLMOps stack that separates concerns: LiteLLM unifies LLM APIs, manages routing and cost controls, and ensures high-availability, while Langfuse focuses on detailed observability, prompt versioning, and performance evaluations. | [oss-llmops-stack.com](https://oss-llmops-stack.com) |
-| 21 | [cyberark/agentwatch](https://github.com/cyberark/agentwatch) | 121 | Python | 2025-05-14 | A powerful AI observability framework that provides comprehensive insights into agent interactions across platforms, enabling developers to monitor, analyze, and optimize AI-driven applications with minimal integration effort. | [www.cyberark.com](https://www.cyberark.com) |
-| 22 | [tma1-ai/tma1](https://github.com/tma1-ai/tma1) | 108 | Go | 2026-07-03 | Local-first observability your agent reads back. TMA1 records every LLM call, then routes what it sees into the agent's next turn via hooks and MCP. | [tma1.ai](https://tma1.ai/) |
-| 23 | [radicalbit/radicalbit-ai-monitoring](https://github.com/radicalbit/radicalbit-ai-monitoring) | 82 | Python | 2026-06-15 | A comprehensive solution for monitoring your AI models in production | [docs.oss-monitoring.radicalbit.ai](https://docs.oss-monitoring.radicalbit.ai/) |
-| 24 | [Necmttn/ax](https://github.com/Necmttn/ax) | 80 | TypeScript | 2026-07-09 | the agent experience layer · observability + memory for AI coding agents (Claude Code + Codex) · local-first, typed, yours |  |
-| 25 | [shyftlabs/continuum](https://github.com/shyftlabs/continuum) | 75 | Python | 2026-07-06 | Continuum - the agent runtime by ShyftLabs. Build, orchestrate, ship. | [docs.continuum.shyftlabs.io](https://docs.continuum.shyftlabs.io/) |
-| 26 | [vstorm-co/agentcanvas](https://github.com/vstorm-co/agentcanvas) | 70 | Python | 2026-06-17 | Visualize Pydantic AI agent workflows from Logfire traces as an interactive HTML diagram - tools, nested sub-agents, tokens and exact cost. | [vstorm.co](https://vstorm.co) |
-| 27 | [langfuse/langfuse-java](https://github.com/langfuse/langfuse-java) | 68 | Java | 2026-07-03 | 🪢 Auto-generated Java Client for Langfuse API |  |
-| 28 | [Netis/heron](https://github.com/Netis/heron) | 67 | Rust | 2026-06-23 | Agent and LLM API performance monitoring via network packet probe. Measures performance of OpenClaw, Claude, Codex, DeepAgents and more - deployed on the provider side, no SDK changes required. | [heron-ai.pages.dev](https://heron-ai.pages.dev) |
-| 29 | [dunetrace/dunetrace](https://github.com/dunetrace/dunetrace) | 56 | Python | 2026-07-07 | Real-time monitoring of production AI agents. | [dunetrace.com](https://dunetrace.com/) |
-| 30 | [last9/gpu-telemetry](https://github.com/last9/gpu-telemetry) | 55 | Python | 2026-07-07 | GPU Observability with workload attribution. One OTLP agent per node ties hardware metrics (NVIDIA, AMD, Intel Gaudi) to the K8s pod or Slurm job burning the GPU. | [last9.io/gpu-observability](https://last9.io/gpu-observability/) |
-| 31 | [myscale/myscale-telemetry](https://github.com/myscale/myscale-telemetry) | 55 | Python | 2025-01-02 | Open-source observability for your LLM application. | [pypi.org/project/myscale-telemetry](https://pypi.org/project/myscale-telemetry/) |
-| 32 | [vicarious11/agenttop](https://github.com/vicarious11/agenttop) | 49 | Python | 2026-04-17 | htop for AI coding agents - monitor token usage, costs, and workflows across Claude Code, Cursor, Kiro, Codex, and Copilot |  |
-| 33 | [TaewoooPark/Agent-Blackbox](https://github.com/TaewoooPark/Agent-Blackbox) | 45 | TypeScript | 2026-06-29 | Local-first flight recorder for coding agents : replay every run as a live session map, score the context bill, and write the fix back into AGENTS.md - no API key, one npx command. | [www.npmjs.com/package/@taewooopark/agent-blackbox](https://www.npmjs.com/package/@taewooopark/agent-blackbox) |
-| 34 | [ByteYellow/AgentProvenance](https://github.com/ByteYellow/AgentProvenance) | 44 | Go | 2026-07-08 | Security-oriented three-axis observability for sandboxed AI agents: model intent, app context, and runtime telemetry into verifiable evidence graphs for risk, forensics, and audit. |  |
-| 35 | [CollieAi/llm-firewall](https://github.com/CollieAi/llm-firewall) | 43 |  | 2026-07-08 | AI Firewall & LLM security toolkit - protect your AI applications from prompt injection, jailbreaks, PII leakage, and adversarial attacks | [collieai.io](https://collieai.io) |
-| 36 | [VoltAgent/ai-agent-platform](https://github.com/VoltAgent/ai-agent-platform) | 40 |  | 2025-10-27 | AI agent platform for building multi-agent systems with orchestration, memory, RAG, workflows, and enterprise observability. | [github.com/VoltAgent/voltagent](https://github.com/VoltAgent/voltagent) |
-| 37 | [ENDEVSOLS/Long-Trainer](https://github.com/ENDEVSOLS/Long-Trainer) | 30 | Python | 2026-05-07 | Production-ready RAG framework for Python - multi-tenant chatbots with streaming, tool calling, agent mode (LangGraph), vector search (FAISS), and persistent MongoDB memory. Built on LangChain. | [endevsols.com/open-source/longtrainer](https://endevsols.com/open-source/longtrainer) |
-| 38 | [tma1-ai/openfuse](https://github.com/tma1-ai/openfuse) | 29 | TypeScript | 2026-07-08 | Langfuse on GreptimeDB. Self-hosted LLM observability. | [github.com/tma1-ai/openfuse#readme](https://github.com/tma1-ai/openfuse#readme) |
-| 39 | [syndicalt/pathlight](https://github.com/syndicalt/pathlight) | 25 | TypeScript | 2026-05-01 | Visual debugging, execution traces, and observability for AI agents. |  |
-| 40 | [teilomillet/hapax](https://github.com/teilomillet/hapax) | 24 | Go | 2025-01-06 | The reliability layer between your code and LLM providers. | [teilomillet.github.io/hapax](https://teilomillet.github.io/hapax) |
-| 41 | [softcane/cc-blackbox](https://github.com/softcane/cc-blackbox) | 20 | Rust | 2026-06-18 | A stop-loss for Claude Code: detects loops, compaction danger, failed tools, and token waste before the next request. |  |
-| 42 | [langfuse/langfuse-workshop](https://github.com/langfuse/langfuse-workshop) | 19 | TypeScript | 2026-07-07 | End-to-end Langfuse workshop using a TypeScript Agent to teach the AI engineering loop: tracing, prompt management, monitoring, datasets, experiments, and evaluation. | [langfuse.com/workshop](https://langfuse.com/workshop) |
-| 43 | [MCKRUZ/openclaw-langfuse](https://github.com/MCKRUZ/openclaw-langfuse) | 18 | JavaScript | 2026-02-19 | OpenClaw plugin for Langfuse LLM observability - traces every agent turn with sessions, token usage, latency, and cost tracking. Zero dependencies, drop-in install. |  |
-| 44 | [ftonato/auris](https://github.com/ftonato/auris) | 18 | TypeScript | 2026-04-13 | Production-grade Node.js RAG system with hybrid retrieval, pluggable adapters, and OpenTelemetry tracing | [deepwiki.com/ftonato/auris](https://deepwiki.com/ftonato/auris/) |
-| 45 | [nujovich/hermes-telemetry](https://github.com/nujovich/hermes-telemetry) | 17 | Python | 2026-07-09 | Budget enforcement + observability plugin for Hermes Agent. Stops runaway costs before they happen. |  |
-| 46 | [smarth-tech/claudetrack](https://github.com/smarth-tech/claudetrack) | 16 | TypeScript | 2026-03-03 | Real-time token tracking, cost forecasting, and rate limit prediction for the Anthropic Claude API. Self-hosted, open source, free forever. |  |
-| 47 | [TarekAwwad/authrty-claude-code-analytics](https://github.com/TarekAwwad/authrty-claude-code-analytics) | 15 | Python | 2026-07-05 | An analytics tool to explore Claude code usage patterns, errors, and token costs | [checkyouragent.dev](https://checkyouragent.dev/) |
-| 48 | [wild-edge/wildedge-python](https://github.com/wild-edge/wildedge-python) | 15 | Python | 2026-06-23 | Python SDK for WildEdge | [wildedge.dev](https://wildedge.dev) |
-| 49 | [smigolsmigol/llmkit](https://github.com/smigolsmigol/llmkit) | 14 | TypeScript | 2026-06-30 | Know what your AI agents cost. API gateway with budget enforcement, session tracking, and MCP tools. | [llmkit.sh](https://llmkit.sh) |
-| 50 | [ankitvirdi4/awesome-llm-cost](https://github.com/ankitvirdi4/awesome-llm-cost) | 13 |  | 2026-06-05 | Tools, libraries, papers, and patterns for reducing the cost of running large language models in production. | [github.com/ankitvirdi4/awesome-llm-cost](https://github.com/ankitvirdi4/awesome-llm-cost) |
-| 51 | [michaeloboyle/claude-langfuse-monitor](https://github.com/michaeloboyle/claude-langfuse-monitor) | 11 | JavaScript | 2026-04-07 | Automatic Langfuse tracking for Claude Code | [www.npmjs.com/package/claude-langfuse-monitor](https://www.npmjs.com/package/claude-langfuse-monitor) |
-| 52 | [Rxflex/agenttrace](https://github.com/Rxflex/agenttrace) | 11 | Python | 2026-05-07 | AgentTrace is an open-source, local-first step debugger for AI agents. It provides a Python SDK for tracing your agent runs and a web UI to inspect spans, tool calls, prompts, and responses as an interactive tree. |  |
-| 53 | [DataGrout/lumen](https://github.com/DataGrout/lumen) | 11 | Rust | 2026-06-13 | Real-time LLM token and cost monitor with TLS-intercepting proxy or HTTP relay; cross-platform with macOS status bar app and browser dashboard | [datagrout.ai/lumen](https://datagrout.ai/lumen) |
-| 54 | [Sapience-AI/openclaw-middleware-suite](https://github.com/Sapience-AI/openclaw-middleware-suite) | 10 | TypeScript | 2026-07-06 | Six in-process middlewares for OpenClaw: HITL approvals, prompt-injection guardrails, PII redaction, tool-call budgets, context compaction, and complexity-aware model routing. Zero telemetry, all state local. |  |
-| 55 | [Arylmera/Token-Dashboard](https://github.com/Arylmera/Token-Dashboard) | 10 | Rust | 2026-07-05 | Local desktop dashboard for Claude Code. Reads your JSONL transcripts and surfaces per-prompt cost, tool heatmaps, subagent attribution, cache analytics, and a rule-based tips engine. Rust + Tauri, fully offline, MIT. | [github.com/Arylmera/Token-Dashboard/releases/latest](https://github.com/Arylmera/Token-Dashboard/releases/latest) |
-| 56 | [neogate-io/NeoGate](https://github.com/neogate-io/NeoGate) | 9 | Rust | 2026-07-09 | Self-hosted Rust LLM API gateway with OpenAI-compatible and Anthropic-compatible APIs, model routing, multi-tenant keys, usage tracking, billing, and admin console. | [github.com/neogate-io/NeoGate](https://github.com/neogate-io/NeoGate) |
-| 57 | [repanareddysekhar/llm-obs](https://github.com/repanareddysekhar/llm-obs) | 9 | Python | 2026-05-27 | Lightweight Python SDK for LLM inference logging and observability | [pypi.org/project/llm-obs](https://pypi.org/project/llm-obs/) |
-| 58 | [lumina-gen/lumina-core](https://github.com/lumina-gen/lumina-core) | 9 | TypeScript | 2026-06-12 | Self-hosted LLM observability - traces, cost, latency, agents, tool calling, RAG. Python SDK + OpenTelemetry + REST. |  |
-| 59 | [spanlens/Spanlens](https://github.com/spanlens/Spanlens) | 9 | TypeScript | 2026-07-08 | Open source LLM observability and monitoring. Drop-in proxy for OpenAI, Anthropic, and Gemini with request logging, cost tracking, and agent tracing. Self-host with one Docker command. MIT. | [spanlens.io](https://spanlens.io) |
-| 60 | [yideng-xl/gemini-cli-hud](https://github.com/yideng-xl/gemini-cli-hud) | 8 | TypeScript | 2026-06-02 | Real-time bottom-sticky HUD for Gemini CLI - model, context usage, tool calls, and more |  |
-| 61 | [acailic/agent_debugger](https://github.com/acailic/agent_debugger) | 8 | Python | 2026-07-08 | Local-first agent debugger with replay, failure memory, smart highlights, and drift detection. | [acailic.github.io/agent_debugger/course.html](https://acailic.github.io/agent_debugger/course.html) |
-| 62 | [AgentTel/agenttel-sdk](https://github.com/AgentTel/agenttel-sdk) | 7 | Java | 2026-04-11 | Agent-ready telemetry SDK - enriches OpenTelemetry across Java, Go, Python, Node.js, and browser with structured context for AI-driven observability. | [agenttel.dev](https://agenttel.dev/) |
-| 63 | [JustVugg/agentmw](https://github.com/JustVugg/agentmw) | 7 | Python | 2026-05-19 | Open-source middleware for AI agents - catches mid-run failures,compresses stale context, and grows a reasoning library across runs. Any model, any framework. |  |
-| 64 | [JoniMartin27/lookspan](https://github.com/JoniMartin27/lookspan) | 7 | TypeScript | 2026-07-08 | Local-first observability dashboard for AI agents. MCP-native. Look at every span your agents emit. | [jonimartin27.github.io/lookspan](https://jonimartin27.github.io/lookspan/) |
-| 65 | [sentinelrca/sentinel](https://github.com/sentinelrca/sentinel) | 7 | Python | 2026-07-05 | Root cause analysis for AI agents. Detects agent loops, retry storms, and optimization opportunities in LangSmith, Langfuse, Arize Phoenix, and OpenTelemetry traces. | [github.com/sentinelrca](https://github.com/sentinelrca) |
-| 66 | [AndrMoura/streamlit-chatbot-analytics](https://github.com/AndrMoura/streamlit-chatbot-analytics) | 7 | Python | 2024-05-08 | Streamlit-based chatbot leveraging Ollama via LangChain and PostHog-LLM for advanced logging and monitoring |  |
-| 67 | [ambertrace/ambertrace-sdk](https://github.com/ambertrace/ambertrace-sdk) | 6 | Python | 2026-03-19 |  | [www.ambertrace.dev](https://www.ambertrace.dev/) |
-| 68 | [matdev83/llm-accounting](https://github.com/matdev83/llm-accounting) | 6 | Python | 2025-07-07 | A Python package for tracking and analyzing LLM usage across different models and applications. It is primarily designed as a library for integration into development process of LLM-based agentic workflow tooling, providing robust tracking capabilities. |  |
-| 69 | [NikiforovAll/pi-otel](https://github.com/NikiforovAll/pi-otel) | 6 | TypeScript | 2026-05-16 | OpenTelemetry tracing for pi-coding-agent - per-turn span tree with full OTel GenAI semantic conventions | [nikiforovall.blog/pi-otel](http://nikiforovall.blog/pi-otel/) |
-| 70 | [grepture/proxy](https://github.com/grepture/proxy) | 6 | TypeScript | 2026-06-26 | Drop-in proxy for OpenAI, Anthropic, and other LLM APIs. Logging, PII redaction, prompt versioning, and evals out of the box. | [grepture.com](https://grepture.com) |
-| 71 | [softcane/codex-blackbox](https://github.com/softcane/codex-blackbox) | 6 | Rust | 2026-05-30 | Codex CLI session supervision: see failed or incomplete turns, token use, model changes, context pressure, and postmortems. |  |
-| 72 | [xops-labs/llm-usage-exporter](https://github.com/xops-labs/llm-usage-exporter) | 6 | C# | 2026-07-01 | Self-hosted Prometheus exporter for LLM usage, token, request, and USD cost telemetry across OpenAI, Azure OpenAI, Anthropic Claude, Google Gemini, and AWS Bedrock. | [github.com/xops-labs/llm-usage-exporter#readme](https://github.com/xops-labs/llm-usage-exporter#readme) |
-| 73 | [justinGrosvenor/alignmenter](https://github.com/justinGrosvenor/alignmenter) | 6 | HTML | 2025-11-12 | Check if your AI sounds like your brand, stays safe, and behaves consistently. Works with your custom GPTs, hosted APIs, and local models. Get detailed reports in minutes, not days. | [www.alignmenter.com](https://www.alignmenter.com) |
-| 74 | [aryanjp1/tokenbudget](https://github.com/aryanjp1/tokenbudget) | 6 | Python | 2026-02-17 | Lightweight token tracking, cost management, and budget enforcement for LLM API calls |  |
-| 75 | [LucaL6/claw-insights](https://github.com/LucaL6/claw-insights) | 6 | TypeScript | 2026-03-24 | Open-source agent observability - session replay, metrics, and shareable snapshots for AI agent workflows |  |
-| 76 | [tanujbolisetty/google-adk-observability](https://github.com/tanujbolisetty/google-adk-observability) | 5 | Python | 2026-06-03 | Comprehensive agent analytics suite for AI agents built with the Google Agent Development Kit (ADK) , LangChain or other popular frameworks, powered by BigQuery Agent Analytics plugin and Grafana |  |
-| 77 | [Idank96/agent-panorama](https://github.com/Idank96/agent-panorama) | 5 | Python | 2026-06-16 | See what your AI agents do, whether it's worth it, and what it costs - a manager-readable report + local dashboard from Langfuse/LangSmith traces (or a one-line live callback). Open source, runs locally. |  |
-| 78 | [aaronlab/browsertrace](https://github.com/aaronlab/browsertrace) | 4 | Python | 2026-05-14 | Local replay debugger for Browser Use failures with screenshots, model I/O, failed-step timelines, and public-safe HTML exports. | [aaronlab.github.io/browsertrace](https://aaronlab.github.io/browsertrace/) |
-| 79 | [Scaffoldic/forgesight](https://github.com/Scaffoldic/forgesight) | 4 | Python | 2026-06-23 | Vendor-neutral, OpenTelemetry-first telemetry for AI agents - traces, cost, budgets & a tamper-evident audit trail to any backend, no agent-code changes. | [pypi.org/project/forgesight](https://pypi.org/project/forgesight/) |
-| 80 | [mohsinsheikhani/property-maintenance-agent](https://github.com/mohsinsheikhani/property-maintenance-agent) | 4 | Python | 2026-06-07 | Eval-first AI agent that triages property maintenance emails. The real work is the eval system around it: trace-driven error analysis, code graders and validated LLM-as-judge (TPR/TNR), component and end-to-end evals, a failure taxonomy, and a CI regression gate. LangGraph, FastAPI, Langfuse. | [www.linkedin.com/in/mohsin-sheikhani](https://www.linkedin.com/in/mohsin-sheikhani/) |
-| 81 | [m24927605/agentic-spendguard](https://github.com/m24927605/agentic-spendguard) | 4 | Rust | 2026-07-06 | Agentic SpendGuard - audit-chain spend control for LLM agents. KMS-signed decisions, Stripe-style auth/capture ledger, operator approval, multi-tenant. Adapters for Pydantic-AI, LangChain, LangGraph, OpenAI Agents SDK, Microsoft AGT. | [agenticspendguard.dev](https://agenticspendguard.dev) |
-| 82 | [AgentInsight/agentinsight-sdk-python](https://github.com/AgentInsight/agentinsight-sdk-python) | 4 | Python | 2026-07-06 | AgentInsight Python SDK provides a Python client for the AgentInsight platform, supporting LLM application observability, tracing, evaluation, and prompt management. | [agentinsight.goldebridge.com/platform](https://agentinsight.goldebridge.com/platform) |
-| 83 | [hanyo-ai/pulse](https://github.com/hanyo-ai/pulse) | 4 | TypeScript | 2026-07-07 | The missing observability layer for AI agents. Real-time session visualization. Every prompt. Every tool call. Every model switch. Live. Drop-in OpenAI/Anthropic gateway. Self-hosted. Bun + SQLite. |  |
-| 84 | [NeuroForgeLabs/rag-doctor](https://github.com/NeuroForgeLabs/rag-doctor) | 4 | JavaScript | 2026-03-13 | 🩺 RAG Doctor - Open-source diagnostic tool for Retrieval-Augmented Generation (RAG) systems. Analyzes codebases to detect architectural issues in LLM pipelines such as missing retrieval, bad chunking, embedding mismatches, and vector database misuse. |  |
-| 85 | [aws-samples/sample-bedrock-invocation-analytics](https://github.com/aws-samples/sample-bedrock-invocation-analytics) | 4 | Python | 2026-06-18 | 📊 Multi-account analytics for Amazon Bedrock. Hub + Spoke architecture aggregates invocation logs across AWS accounts into DynamoDB; NiceGUI WebUI shows token usage, cost breakdown, latency, and TPOT in real time. |  |
-| 86 | [Danultimate/traceforge](https://github.com/Danultimate/traceforge) | 3 | Python | 2026-05-22 | Agent runtime tracing + LLM-mock replay for Python. Self-contained HTML reports, pytest snapshot testing, cost tracking. No SaaS. | [pypi.org/project/traceforge-llm](https://pypi.org/project/traceforge-llm/) |
-| 87 | [sitta07/RAGScope](https://github.com/sitta07/RAGScope) | 3 | Python | 2026-03-10 | A lightweight observability tool for visualizing and comparing RAG retrieval strategies. Features real-time embedding visualization and side-by-side performance metrics. |  |
-| 88 | [2nd1st/api-log-viewer](https://github.com/2nd1st/api-log-viewer) | 3 | Svelte | 2026-06-02 | Svelte 5 SPA trace viewer for api-log · LLM 网关日志查看器，可对接兼容的 JSONL / SQLite trace 存储 |  |
-| 89 | [sairintechnologycom/burnlens](https://github.com/sairintechnologycom/burnlens) | 3 | Python | 2026-06-13 | Open-source LLM FinOps proxy - track OpenAI, Anthropic (Claude), and Google Gemini costs by feature, team, and customer. Zero code changes. pip install burnlens. | [burnlens.app](https://burnlens.app) |
-| 90 | [lucianareynaud/turnpike](https://github.com/lucianareynaud/turnpike) | 3 | Python | 2026-06-26 | OTel-native typed primitives for LLM cost attribution and telemetry - published on PyPI. | [pypi.org/project/turnpike](https://pypi.org/project/turnpike) |
-| 91 | [andalabx/agentmetrics](https://github.com/andalabx/agentmetrics) | 3 | Python | 2026-06-23 | Open-source AI agent observability. Track cost, latency, tokens, and errors for OpenClaw, Hermes, LangChain, CrewAI, LlamaIndex, OpenAI Agents, AutoGen, and Anthropic Managed Agents. Self-hosted, no cloud required. | [agentmetrics.dev](https://agentmetrics.dev) |
-| 92 | [ashwanijha04/peekr](https://github.com/ashwanijha04/peekr) | 3 | Python | 2026-06-11 | Zero-config observability for AI agents. Auto-instruments OpenAI & Anthropic SDKs. | [ashwanijha04.github.io/peekr](https://ashwanijha04.github.io/peekr/) |
-| 93 | [vibeinging/yiTrace](https://github.com/vibeinging/yiTrace) | 3 | Rust | 2026-07-09 | Local-first TraceDB for AI agents: replay runs, search traces, track cost/evals, and embed in Node/Electron or shard with a gateway. | [github.com/vibeinging/yiTrace#readme](https://github.com/vibeinging/yiTrace#readme) |
-| 94 | [victoralfred/whatifd](https://github.com/victoralfred/whatifd) | 3 | Python | 2026-06-22 | whatif is an open experiment runner for LLM behavior changes. whatif forks production traces, replays them with a proposed change (cached tool outputs preserve safety), scores the diff, and emits a PR-ready verdict report | [whatif.codes](https://whatif.codes) |
-| 95 | [erandr/geight.ai](https://github.com/erandr/geight.ai) | 3 | C# | 2026-05-07 | Route traffic across providers and models through one OpenAI-compatible API. Bring your own keys, define fallbacks and policies, and scale from a single binary to a fleet, or let us run it for you. | [geight.ai](https://geight.ai) |
-| 96 | [Chief-Strategist-J/llm-observability-platform](https://github.com/Chief-Strategist-J/llm-observability-platform) | 3 | Python | 2026-07-07 | Implemented an LLM observability and evaluation submodule featuring automated instrumentation and tracing, stateful chat orchestration, semantic vector-memory caching, and scheduled Temporal workers for cost anomaly detection. (Tracep api only link : https://tracep-go.onrender.com/) |  |
-| 97 | [umairb0/agenttrace](https://github.com/umairb0/agenttrace) | 3 | Python | 2026-07-09 | Trace and debug AI agent behavior locally with a step-by-step visual tool that stores data offline for clear inspection and faster development. |  |
-| 98 | [brokle-ai/brokle](https://github.com/brokle-ai/brokle) | 3 | Go | 2026-07-03 | The AI engineering platform for AI teams. Observability, evaluation, and prompt management for LLMs and AI agents. OpenTelemetry native. | [steloit.com](https://steloit.com) |
-| 99 | [scopecall/scopecall](https://github.com/scopecall/scopecall) | 3 | TypeScript | 2026-06-25 | Open-source, self-hostable AI cost & workflow observability. Find the prompt, customer, model, and workflow path behind every LLM cost spike - without a proxy. | [scopecall.com](https://scopecall.com) |
-| 100 | [agentc7/ac7](https://github.com/agentc7/ac7) | 3 | TypeScript | 2026-06-29 | Self-hosted control plane for AI agent teams. Push objectives at Claude Code or OpenAI Codex; capture every LLM call. | [agentc7.com](https://agentc7.com) |
-
-</details>
-
-### `"llm observability" in:description` - 93 prospects
+### `topic:agent-memory` - 96 prospects
 
 <details>
 <summary><strong>Show table</strong></summary>
 
 | # | Repository | Stars | Language | Last push | Description | Website |
 | ---: | --- | ---: | --- | --- | --- | --- |
-| 1 | [openobserve/openobserve](https://github.com/openobserve/openobserve) | 19,784 | TypeScript | 2026-07-09 | Open source observability platform for logs, metrics, traces, frontend monitoring, pipelines and LLM observability. A sophisticated, simple and highly performant alternative to Datadog, Splunk, and Elasticsearch with 140x lower storage costs and single binary deployment. | [openobserve.ai](https://openobserve.ai) |
-| 2 | [evidentlyai/evidently](https://github.com/evidentlyai/evidently) | 7,673 | Jupyter Notebook | 2026-05-02 | Evidently is ​​an open-source ML and LLM observability framework. Evaluate, test, and monitor any AI-powered system or data pipeline. From tabular data to Gen AI. 100+ metrics. | [discord.gg/xZjKRaNp8b](https://discord.gg/xZjKRaNp8b) |
-| 3 | [openlit/openlit](https://github.com/openlit/openlit) | 2,582 | TypeScript | 2026-07-08 | Open source platform for AI Engineering: OpenTelemetry-native LLM Observability, GPU Monitoring, Guardrails, Evaluations, Prompt Management, Vault, Playground. 🚀💻 Integrates with 50+ LLM Providers, VectorDBs, Agent Frameworks and GPUs. | [docs.openlit.io](https://docs.openlit.io) |
-| 4 | [whylabs/langkit](https://github.com/whylabs/langkit) | 992 | Jupyter Notebook | 2024-11-22 | 🔍 LangKit: An open-source toolkit for monitoring Large Language Models (LLMs). 📚 Extracts signals from prompts & responses, ensuring safety & security. 🛡️ Features include text quality, relevance metrics, & sentiment analysis. 📊 A comprehensive tool for LLM observability. 👀 | [whylabs.ai](https://whylabs.ai) |
-| 5 | [ajac-zero/example-rag-app](https://github.com/ajac-zero/example-rag-app) | 158 | TypeScript | 2026-01-15 | Open-Source RAG app with LLM Observability (Langfuse), support for 100+ providers (LiteLLM), Dockerized, Full Type-checking, 100% Test coverage, and more... |  |
-| 6 | [AmineDjeghri/generative-ai-project-template](https://github.com/AmineDjeghri/generative-ai-project-template) | 117 | Python | 2026-07-08 | Template for a new generative ai project using uv, nicegui, fastapi, llms (cloud & local with litellm and ollama, cpu/gpu) and langfuse for llm observability | [aminedjeghri.com/generative-ai-project-template](http://aminedjeghri.com/generative-ai-project-template/) |
-| 7 | [DataDog/llm-observability](https://github.com/DataDog/llm-observability) | 78 | Jupyter Notebook | 2026-07-08 | Learn by example how to instrument Datadog's LLM Observability product | [docs.datadoghq.com/tracing/llm_observability](https://docs.datadoghq.com/tracing/llm_observability/) |
-| 8 | [langchain-tracer/Axon](https://github.com/langchain-tracer/Axon) | 38 | TypeScript | 2026-07-02 | OpenTelemetry-native LLM observability CLI. Point any OTEL exporter at it and watch your LLM/agent traces in real time. | [www.npmjs.com/package/@axon-ai/cli](https://www.npmjs.com/package/@axon-ai/cli) |
-| 9 | [sarva-20/LLM-Observability-FOSS](https://github.com/sarva-20/LLM-Observability-FOSS) | 36 | Python | 2026-01-07 | 🧠 Learn LLM Observability step-by-step using FOSS tools. From zero visibility to full monitoring with Langtrace, OpenTelemetry, and Jaeger. Demo from FOSS United Coimbatore Meetup. |  |
-| 10 | [codex-odyssey/llm-observability](https://github.com/codex-odyssey/llm-observability) | 19 | Jupyter Notebook | 2024-11-08 | 技術書典#17 - 『俺たちと探究するLLM Observabilityアプリケーションのオブザーバビリティ』で使用するサンプルアプリケーション | [techbookfest.org/product/mn0L7GEm3s8Vhmxq971HEi?productVariantID=myG2YLxFNAEVkRf2dipG8f](https://techbookfest.org/product/mn0L7GEm3s8Vhmxq971HEi?productVariantID=myG2YLxFNAEVkRf2dipG8f) |
-| 11 | [ContextJet-ai/awesome-llm-observability](https://github.com/ContextJet-ai/awesome-llm-observability) | 18 | Python | 2026-07-06 | 50+ curated LLM observability tools PLUS 26 Agent Skills (several with runnable, unit-tested scripts) to build, evaluate, debug, secure & monitor reliable LLM apps. Tracing, evals, guardrails, LLMOps. |  |
-| 12 | [Aayush-engineer/TraceMind](https://github.com/Aayush-engineer/TraceMind) | 16 | Python | 2026-07-09 | Open-source LLM observability and evaluation platform |  |
-| 13 | [MikeHsu0618/2025-llm-observability-bootcamp](https://github.com/MikeHsu0618/2025-llm-observability-bootcamp) | 14 | Python | 2025-06-05 | 2025 DevOpsDays Taipei LLM Observability Bootcamp |  |
-| 14 | [Crashlens/crashlens](https://github.com/Crashlens/crashlens) | 13 | Python | 2025-12-02 | Production LLM observability CLI - detects token waste, retry loops & model overkill across OpenAI/Anthropic/Gemini. Prometheus metrics, Grafana dashboard, PyPI shipped. | [crashlens.vercel.app](https://crashlens.vercel.app/) |
-| 15 | [Dynatrace/obslab-llm-observability](https://github.com/Dynatrace/obslab-llm-observability) | 12 | HTML | 2026-02-02 | Search for a holiday and get destination advice from an LLM. Observability by Dynatrace. | [dynatrace.github.io/obslab-llm-observability](https://dynatrace.github.io/obslab-llm-observability/) |
-| 16 | [candelahq/candela](https://github.com/candelahq/candela) | 10 | Go | 2026-07-09 | 🕯️ OTel-native LLM observability platform. Trace, cost, and evaluate your LLM calls. | [www.candelahq.com](https://www.candelahq.com/) |
-| 17 | [goabiaryan/awesome-observability](https://github.com/goabiaryan/awesome-observability) | 9 | Python | 2026-06-10 | A curation of some of the best tools, resources, frameworks on LLM observability |  |
-| 18 | [HikaruEgashira/otel-hooks](https://github.com/HikaruEgashira/otel-hooks) | 8 | Python | 2026-07-09 | AI Agent hooks for LLM Observability. |  |
-| 19 | [joshuagamboa/turboquant-apple-silicon](https://github.com/joshuagamboa/turboquant-apple-silicon) | 7 | Rust | 2026-04-01 | High-performance Rust integration for aggressive KV cache quantization on Apple Silicon GPUs (Metal). Features a multi-turn TUI, smart context windowing, and full LLM observability. |  |
-| 20 | [GaggleAMP/langchainrb_datadog](https://github.com/GaggleAMP/langchainrb_datadog) | 6 | Ruby | 2025-05-22 | Enables LLM observability with Datadog for Langchain.rb |  |
-| 21 | [ankitvirdi4/react-native-llm-meter](https://github.com/ankitvirdi4/react-native-llm-meter) | 6 | TypeScript | 2026-07-01 | LLM observability for React Native and Expo. Track token usage, cost, latency, and TTFT for Claude, GPT, and Gemini calls on device, with optional remote sync. | [www.npmjs.com/package/react-native-llm-meter](https://www.npmjs.com/package/react-native-llm-meter) |
-| 22 | [iiizzzyyy/promptmetrics](https://github.com/iiizzzyyy/promptmetrics) | 5 | TypeScript | 2026-05-20 | Lightweight, self-hosted prompt registry with GitHub-backed versioning and metadata logging for LLM observability. | [github.com/iiizzzyyy/promptmetrics](https://github.com/iiizzzyyy/promptmetrics) |
-| 23 | [genai-telemetry/genai-telemetry](https://github.com/genai-telemetry/genai-telemetry) | 5 | Python | 2026-06-06 | Platform-agnostic SDK for LLM observability. Export LLM traces, token usage, costs, and performance metrics directly to Splunk, Elasticsearch, Datadog-or via OTLP to Prometheus, Grafana Tempo, and more. One SDK, any backend. |  |
-| 24 | [recondodev/recondo](https://github.com/recondodev/recondo) | 5 | TypeScript | 2026-05-10 | AI governance gateway. Wire-level LLM observability - every prompt, every tool call, every response. | [recondo.dev](https://recondo.dev/) |
-| 25 | [maheshbabugorantla/llm-observability-opensearch](https://github.com/maheshbabugorantla/llm-observability-opensearch) | 5 | Python | 2026-06-13 | Full-stack LLM observability using OpenSearch, Data Prepper, and OpenTelemetry. Zero-code instrumentation with automatic cost tracking via OpenLLMetry + LiteLLM pricing. |  |
-| 26 | [avikcodes/traceLLM](https://github.com/avikcodes/traceLLM) | 5 | JavaScript | 2026-06-13 | Open-source LLM observability platform → track prompts, token usage, latency, retries, hallucinations, tool calls, agent execution paths. PostgreSQL stores traces. WebSocket streams logs live. | [tracellm.aviklabs.xyz](https://tracellm.aviklabs.xyz/) |
-| 27 | [serener91/Texo](https://github.com/serener91/Texo) | 4 | Python | 2026-01-21 | Weaving the fabric of LLM observability |  |
-| 28 | [sauravGit/open-llm-observability](https://github.com/sauravGit/open-llm-observability) | 4 | Python | 2026-05-12 | A vendor-neutral, OpenTelemetry-compatible semantic convention and SDK layer for standardizing LLM observability across any provider, framework, or platform. | [github.com/sauravGit/open-llm-observability](https://github.com/sauravGit/open-llm-observability) |
-| 29 | [Rishabhmannu/financebench-rag-agent](https://github.com/Rishabhmannu/financebench-rag-agent) | 4 | Python | 2026-06-09 | Multi-agent LangGraph RAG for financial Q&A - 72.7% on FinanceBench under κ=0.932 calibrated judge. RBAC at the vector layer, multi-party HITL on high-stakes answers, self-hosted LLM observability. pip install financebench-rag-agent | [pypi.org/project/financebench-rag-agent](https://pypi.org/project/financebench-rag-agent/) |
-| 30 | [ordinarykaizen/PromptLab](https://github.com/ordinarykaizen/PromptLab) | 3 |  | 2025-02-26 | LLM observability |  |
-| 31 | [priordd/chatbot-datadog-chainlit-openai](https://github.com/priordd/chatbot-datadog-chainlit-openai) | 3 | Python | 2024-12-08 | Chatbot: Datadog LLM Observability + OpenAI + Chainlit |  |
-| 32 | [JJleem/claude-console](https://github.com/JJleem/claude-console) | 3 | TypeScript | 2026-04-20 | Claude Code 설정 관리 + LLM Observability 로컬 대시보드 |  |
-| 33 | [doneyli/clickhouse-llm-observability](https://github.com/doneyli/clickhouse-llm-observability) | 3 | Python | 2026-07-08 | LLM Observability demo with LibreChat, Langfuse, and ClickHouse |  |
-| 34 | [tarekmasryo/tarekmasryo](https://github.com/tarekmasryo/tarekmasryo) | 3 |  | 2026-05-05 | Personal GitHub profile README showcasing production ML, GenAI/RAG systems, LLM observability, and decision-ready AI workflows. | [tarekmasryo.github.io](https://tarekmasryo.github.io) |
-| 35 | [cocolocow/langfuse-board](https://github.com/cocolocow/langfuse-board) | 3 | TypeScript | 2026-05-20 | The executive dashboard for LLM observability. CEO-friendly view of your AI costs, usage and quality - plugged into Langfuse. | [langfuse-board-landing.vercel.app](https://langfuse-board-landing.vercel.app) |
-| 36 | [YANG-DB/observability-prompots](https://github.com/YANG-DB/observability-prompots) | 2 | Python | 2023-05-07 | LLM observability related prompts |  |
-| 37 | [run-llama/product-specs-comparison](https://github.com/run-llama/product-specs-comparison) | 2 | HTML | 2026-02-13 | Demo for LlamaIndex x PostHog LLM observability |  |
-| 38 | [jdziat/langfuse-go](https://github.com/jdziat/langfuse-go) | 2 | Go | 2026-06-29 | Go SDK for Langfuse - the open-source LLM observability platform. Track traces, spans, generations, and scores for your LLM applications with zero external dependencies. |  |
-| 39 | [art-vish/llamacpp-llm-observer](https://github.com/art-vish/llamacpp-llm-observer) | 2 | Makefile | 2025-08-23 | Llama.cpp LLM Observability Stack with Prometheus, Grafana, Alertmanager and Node Exporter |  |
-| 40 | [klipitkas/opik-php](https://github.com/klipitkas/opik-php) | 2 | PHP | 2026-02-21 | Community-maintained PHP SDK for Opik - an LLM observability and evaluation platform. | [packagist.org/packages/klipitkas/opik-php](https://packagist.org/packages/klipitkas/opik-php) |
-| 41 | [VigneshReddy-afk/ajah](https://github.com/VigneshReddy-afk/ajah) | 2 | Go | 2026-06-26 | Self-hostable LLM observability platform. Gateway proxy, cost attribution, PII masking, quality scoring. |  |
-| 42 | [LatencyTDH/prosperus](https://github.com/LatencyTDH/prosperus) | 2 | TypeScript | 2026-07-04 | LLM observability platform: traces, spans, evaluations, and cost tracking for AI-powered applications |  |
-| 43 | [doneyli/clickhouse-clickstack-o11y](https://github.com/doneyli/clickhouse-clickstack-o11y) | 2 | Python | 2026-02-19 | HyperDX AI Dashboard Builder - LLM observability with ClickHouse, OpenTelemetry, and Claude-powered dashboard generation |  |
-| 44 | [last9/python-ai-sdk](https://github.com/last9/python-ai-sdk) | 2 | Python | 2026-07-03 | OpenTelemetry extension for LLM observability - track conversations, workflows, and costs in Python AI applications | [last9.io](https://last9.io) |
-| 45 | [linny006/llmops-radar](https://github.com/linny006/llmops-radar) | 2 | Python | 2026-07-09 | Live index of the newest LLMOps tooling - track what's shipping in LLM observability and deployment | [github.com/linny006?utm_source=github&utm_medium=about&utm_campaign=llmops-radar](https://github.com/linny006?utm_source=github&utm_medium=about&utm_campaign=llmops-radar) |
-| 46 | [pkrao20/LumenAI](https://github.com/pkrao20/LumenAI) | 2 | TypeScript | 2026-06-01 | Lightweight LLM observability platform - real-time inference logging, multi-turn chat, and metadata ingestion pipeline for AI applications |  |
-| 47 | [aman-bhaskar-codes/llm-engineering-lab](https://github.com/aman-bhaskar-codes/llm-engineering-lab) | 2 | Python | 2026-03-21 | Production-grade LLM systems built through learning-by-building. Covers extraction engines, RAG pipelines, evaluation systems, agents, and LLM observability. |  |
-| 48 | [tarekmasryo/llm-production-telemetry](https://github.com/tarekmasryo/llm-production-telemetry) | 2 | Jupyter Notebook | 2026-05-02 | Decision-grade LLM observability notebook: telemetry validation, SLO/budget burn, routing backtest, drift checks, triage policy, and review-ready operational artifacts. | [www.kaggle.com/code/tarekmasryo/llm-production-telemetry](https://www.kaggle.com/code/tarekmasryo/llm-production-telemetry) |
-| 49 | [llm-trace/llm-trace](https://github.com/llm-trace/llm-trace) | 2 | Python | 2026-04-07 | Lightweight LLM observability library. SQLite-based tracing with zero infrastructure. Drop-in support for LangGraph, LangChain, OpenAI, Anthropic, OpenTelemetry, and any HTTP client. |  |
-| 50 | [llamatelemetry/llamatelemetry](https://github.com/llamatelemetry/llamatelemetry) | 2 | Jupyter Notebook | 2026-06-11 | llamatelemetry is a cuda-dedicated llm inference and llm observability tool for local llm model with GGUF format using built-in llama.cpp tool. | [llamatelemetry.github.io](https://llamatelemetry.github.io/) |
-| 51 | [PalenaAI/langfuse-operator](https://github.com/PalenaAI/langfuse-operator) | 2 | Go | 2026-06-28 | Kubernetes operator for deploying and managing production-ready Langfuse LLM observability instances. Deploy the full stack (Web, Worker, PostgreSQL, ClickHouse, Redis, Blob Storage) from a single custom resource, with automated upgrades, secret rotation, multi-tenancy, and circuit breakers built in. | [langfuse-operator.palena.ai](https://langfuse-operator.palena.ai/) |
-| 52 | [ThilakKumar-A/Logmera](https://github.com/ThilakKumar-A/Logmera) | 2 | Python | 2026-03-04 | Logmera is a self-hosted LLM observability and monitoring platform for AI applications. It logs prompts, responses, and latency, storing everything in your own PostgreSQL database. Run it on your infrastructure and monitor AI behavior with a built-in dashboard and full data privacy. |  |
-| 53 | [CanadaDevOpsCommunity2025/LLMObservabilitySystem_Ugo](https://github.com/CanadaDevOpsCommunity2025/LLMObservabilitySystem_Ugo) | 1 |  | 2025-06-11 | Project Name: LLM Observability System / Group Name: Ugo / Participant Name: Ugochukwu Osuji |  |
-| 54 | [egopher/langecho](https://github.com/egopher/langecho) | 1 | Go | 2025-03-05 | LLM Observability tool |  |
-| 55 | [supernature885/ai-radar-llm-observability-starter](https://github.com/supernature885/ai-radar-llm-observability-starter) | 1 | Python | 2026-07-03 | LLM Observability Starter |  |
-| 56 | [zvectorlabs/zradar](https://github.com/zvectorlabs/zradar) | 1 | Rust | 2026-07-06 | Agent Tracing & LLM Observability Platform with high-performance OpenTelemetry ingestion and cost effective Parquet telemetry storage on S3 |  |
-| 57 | [sfc-gh-sdickson/LLM_OBSERVE](https://github.com/sfc-gh-sdickson/LLM_OBSERVE) | 1 | Python | 2025-07-22 | Testing Tool for LLM Observability |  |
-| 58 | [cmangun/llm-observability-platform](https://github.com/cmangun/llm-observability-platform) | 1 | Python | 2026-04-27 | LLM observability and cost tracking |  |
-| 59 | [Axionautomation/vega](https://github.com/Axionautomation/vega) | 1 | TypeScript | 2025-08-26 | Vega by Axion - LLM Observability Platform |  |
-| 60 | [TIEGUO-W/claude-mon](https://github.com/TIEGUO-W/claude-mon) | 1 | JavaScript | 2026-05-17 | Zero-config LLM observability for Claude Code |  |
-| 61 | [priordd/langchain-function-dd-demo](https://github.com/priordd/langchain-function-dd-demo) | 1 | Python | 2025-06-01 | Langchain LLM function with Datadog LLM Observability |  |
-| 62 | [kavishkartha05/QueryScope](https://github.com/kavishkartha05/QueryScope) | 1 | Python | 2026-04-03 | open source load testing + LLM observability tool |  |
-| 63 | [maxjeffwell/lunary](https://github.com/maxjeffwell/lunary) | 1 | TypeScript | 2026-03-10 | Lunary community edition - self-hosted LLM observability platform |  |
-| 64 | [n1s0-c/mcp-server-datadog-fork](https://github.com/n1s0-c/mcp-server-datadog-fork) | 1 | TypeScript | 2026-01-19 | MCP server for Datadog with LLM Observability support |  |
-| 65 | [santiagomed/tellm](https://github.com/santiagomed/tellm) | 1 | Go | 2024-09-03 | A minimal LLM observability platform written in Go. |  |
-| 66 | [Pixeler5diti/localmind](https://github.com/Pixeler5diti/localmind) | 1 | Python | 2026-02-24 | A Local-First Cognitive & LLM Observability Engine for Developers |  |
-| 67 | [vosevnikita-droid/rag-eval-harness](https://github.com/vosevnikita-droid/rag-eval-harness) | 1 | Python | 2026-05-29 | RAGAS-style RAG evaluation harness + LLM observability tracing patterns |  |
-| 68 | [Tenount/backup-lunary](https://github.com/Tenount/backup-lunary) | 1 |  | 2025-10-31 | The production toolkit for LLMs. Observability, prompt management and evaluations. | [lunary.ai](https://lunary.ai) |
-| 69 | [michwirantono/thepracticaldeveloper](https://github.com/michwirantono/thepracticaldeveloper) | 1 | HTML | 2025-07-04 | Articles and resources on LLM observability, tracing, and hallucination detection. |  |
-| 70 | [llmobserve/llmobserve](https://github.com/llmobserve/llmobserve) | 1 | Go | 2026-04-21 | LLM observability for Go developers. Zero external services. 3 lines of code. |  |
-| 71 | [bryan-lolordo/ai-agent-observatory](https://github.com/bryan-lolordo/ai-agent-observatory) | 1 | Python | 2026-01-26 | Production LLM observability platform with cost tracking, semantic caching, and quality evaluation |  |
-| 72 | [diegosimao/Observability---RAG](https://github.com/diegosimao/Observability---RAG) | 1 | Python | 2025-12-10 | LLM Observability (RAG) using the modern O11y stack (OpenTelemetry, Prometheus, and Grafana). |  |
-| 73 | [Rixy-Ai/ServeQuery](https://github.com/Rixy-Ai/ServeQuery) | 1 | Jupyter Notebook | 2025-06-24 | Revolutionizing AI Observability ServeQuery is the ultimate platform for ML and LLM observability |  |
-| 74 | [Howard-Soap/llm-lens](https://github.com/Howard-Soap/llm-lens) | 1 | TypeScript | 2026-05-03 | 🔍 Open-source, free, zero-dependency LLM observability tool. See your LLM clearly. |  |
-| 75 | [ashcastelinocs124/ArcanaAI](https://github.com/ashcastelinocs124/ArcanaAI) | 1 | HTML | 2026-02-15 | A LLM observability platform for multi-agent LLM systems with forensic analysis capabilities. |  |
-| 76 | [postfiatorg/langfuse](https://github.com/postfiatorg/langfuse) | 1 | TypeScript | 2026-05-07 | 🪢 Open source LLM engineering platform: LLM Observability, metrics, evals, prompt management, playground, datasets. |  |
-| 77 | [omuili/llm-observability-copilot](https://github.com/omuili/llm-observability-copilot) | 1 | JavaScript | 2025-12-29 | llm-observability-copilot Description: AI-native observability platform for LLM applications - Datadog + Google Cloud Hackathon |  |
-| 78 | [erythix4/VMLLM](https://github.com/erythix4/VMLLM) | 1 | Shell | 2026-04-29 | A lab to understand how to use Victoria Metrics as a backend for LLM observability |  |
-| 79 | [bugrasitemkar/ai-signals](https://github.com/bugrasitemkar/ai-signals) | 1 | TypeScript | 2026-04-05 | Real-time LLM observability tool - visualizes 18 internal model signals across 5 schools of thought |  |
-| 80 | [sarahabumandil/ZakeyTeam-AI-Agent-Observability](https://github.com/sarahabumandil/ZakeyTeam-AI-Agent-Observability) | 1 | Python | 2026-01-09 | production grade observability for AI agents , demonstrating logging , tracing and metrics using modern LLM observability tools |  |
-| 81 | [GiorgosPanagopoulos/llmpulse](https://github.com/GiorgosPanagopoulos/llmpulse) | 1 | Python | 2026-06-21 | Production-grade LLM observability platform - real-time tracing, cost tracking, and analytics for Anthropic & OpenAI APIs |  |
-| 82 | [hw-oh/wandb-skills](https://github.com/hw-oh/wandb-skills) | 1 | Python | 2026-03-06 | AI coding agent skills for W&B (Weights & Biases) - Models experiment tracking and Weave LLM observability | [docs.wandb.ai](https://docs.wandb.ai/) |
-| 83 | [catamitez0-maker/EigenTruth](https://github.com/catamitez0-maker/EigenTruth) | 1 | Python | 2026-07-05 | Calibrated LLM observability toolkit: representation diagnostics, conformal risk calibration, verifier/control traces, and optional activation steering. |  |
-| 84 | [ekeshwarj5/llm-observability](https://github.com/ekeshwarj5/llm-observability) | 1 | TypeScript | 2026-05-21 | End-to-end LLM observability platform: chatbot, instrumentation SDK, event-driven ingestion, OLTP+OLAP storage, Grafana dashboards. |  |
-| 85 | [RoyNativ-AI/vllm-tracker](https://github.com/RoyNativ-AI/vllm-tracker) | 1 | TypeScript | 2026-01-16 | Privacy-first LLM observability. Like Langfuse but stores zero prompts. Self-hosted, multi-instance, SOC2/GDPR ready. |  |
-| 86 | [Emart29/rag-document-analyzer](https://github.com/Emart29/rag-document-analyzer) | 1 | Python | 2026-02-18 | A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document question-answering, with integrated LLM observability and monitoring | [rag-document-analyzer.vercel.app](https://rag-document-analyzer.vercel.app) |
-| 87 | [Sagar2366/agent-observability-sandbox](https://github.com/Sagar2366/agent-observability-sandbox) | 1 | Python | 2026-06-26 | Production-Grade LLM Observability at Scale - OTel Demo App + Datadog LLM Obs + Docker Sandbox with security guardrails and governance |  |
-| 88 | [PrithviElancherran/AI-SRE-Agent](https://github.com/PrithviElancherran/AI-SRE-Agent) | 1 | Python | 2025-10-24 | Autonomous AI SRE Agent that analyzes production incidents, executes playbooks, and finds root causes using LLMs, observability data, and historical patterns. |  |
-| 89 | [airblackbox/otel-prompt-vault](https://github.com/airblackbox/otel-prompt-vault) | 1 | Go | 2026-03-28 | OpenTelemetry Collector processor that offloads sensitive GenAI content to external storage, leaving structured references in traces. Privacy-by-default for LLM observability. |  |
-| 90 | [skyline-GTRr32/OKI-TRACE](https://github.com/skyline-GTRr32/OKI-TRACE) | 1 | Python | 2026-05-17 | OKI TRACE: Local LLM observability. See step-by-step, layer-by-layer what your AI thinks. Logit Lens & Attention for HuggingFace models. |  |
-| 91 | [juliettech13/helicone-ollama-proxy](https://github.com/juliettech13/helicone-ollama-proxy) | 1 | TypeScript | 2025-04-11 | A powerful Express.js proxy server that connects Ollama with Helicone for advanced LLM observability and monitoring of your local Llama requests. |  |
-| 92 | [armelhbobdad/opik-skills](https://github.com/armelhbobdad/opik-skills) | 1 |  | 2026-01-28 | Agent Skills that bring Opik's LLM observability stack directly into your AI coding assistant-trace, evaluate, and iterate without leaving your editor. |  |
-| 93 | [BrenoGdS/llm-microservice-observability-demo](https://github.com/BrenoGdS/llm-microservice-observability-demo) | 1 | Java | 2025-12-12 | A Spring Boot microservice that uses LangChain4j and Ollama to explain financing quotes with LLMs, featuring conversation memory and LLM observability with Langfuse. |  |
+| 1 | [supermemoryai/supermemory](https://github.com/supermemoryai/supermemory) | 28,282 | TypeScript | 2026-07-07 | Memory and context engine + app that is extremely fast, scalable, and can be run fully locally. The Memory API for the AI era. | [supermemory.ai/docs](https://supermemory.ai/docs) |
+| 2 | [topoteretes/cognee](https://github.com/topoteretes/cognee) | 27,396 | Python | 2026-07-09 | Cognee is the open-source AI memory platform for agents. Give your AI agents persistent long-term memory across sessions with a self-hosted knowledge graph engine. | [www.cognee.ai](https://www.cognee.ai) |
+| 3 | [volcengine/OpenViking](https://github.com/volcengine/OpenViking) | 26,460 | Python | 2026-07-09 | Self-evolving Context Database for AI Agents. Unify Agent Memory, Knowledge RAG and Skills. | [openviking.ai](https://openviking.ai/) |
+| 4 | [MemoriLabs/Memori](https://github.com/MemoriLabs/Memori) | 15,552 | Python | 2026-06-15 | Memori is agent-native memory infrastructure. A LLM-agnostic layer that turns agent execution and conversation into structured, persistent state for production systems. Built for enterprise, Memori works with the data infrastructure you already run, no rip-and-replace, and deploys across managed cloud, single-tenant cloud, VPC, and on-premises. | [memorilabs.ai](https://memorilabs.ai) |
+| 5 | [NevaMind-AI/memU](https://github.com/NevaMind-AI/memU) | 14,005 | Python | 2026-07-07 | Personal memory for agents - fast memory retrieval, self-evolving skills, and lower cost. | [memu.pro](https://memu.pro) |
+| 6 | [EverMind-AI/EverOS](https://github.com/EverMind-AI/EverOS) | 10,659 | Python | 2026-07-08 | One portable memory layer for every AI agent: local-first, Markdown-native, user-owned, and self-evolving across apps, tools, and workflows. | [evermind.ai/everos](https://evermind.ai/everos) |
+| 7 | [plastic-labs/honcho](https://github.com/plastic-labs/honcho) | 5,866 | Python | 2026-07-08 | Memory library for building stateful agents | [docs.honcho.dev](https://docs.honcho.dev) |
+| 8 | [ai-boost/awesome-harness-engineering](https://github.com/ai-boost/awesome-harness-engineering) | 2,932 | Python | 2026-07-09 | Awesome list for AI agent harness engineering: tools, patterns, evals, memory, MCP, permissions, observability, and orchestration. | [github.com/ai-boost/awesome-harness-engineering](https://github.com/ai-boost/awesome-harness-engineering) |
+| 9 | [letta-ai/letta-code](https://github.com/letta-ai/letta-code) | 2,821 | TypeScript | 2026-07-09 | Stateful agents that are like people, with memory, identity, and the ability to learn and adapt | [www.letta.com/agent](https://www.letta.com/agent) |
+| 10 | [kayba-ai/agentic-context-engine](https://github.com/kayba-ai/agentic-context-engine) | 2,527 | Python | 2026-07-08 | 🧠 Make your agents learn from experience. Now available as a hosted solution at kayba.ai | [www.kayba.ai](https://www.kayba.ai) |
+| 11 | [Bitterbot-AI/bitterbot-desktop](https://github.com/Bitterbot-AI/bitterbot-desktop) | 2,423 | TypeScript | 2026-07-09 | A local-first AI agent with persistent memory, emotional intelligence, and a peer-to-peer skills economy. | [bitterbot.ai](https://bitterbot.ai) |
+| 12 | [trustgraph-ai/trustgraph](https://github.com/trustgraph-ai/trustgraph) | 2,273 | Python | 2026-07-08 | Write context once. Run agents anywhere. Own your data and the models. | [TrustGraph.ai](https://TrustGraph.ai) |
+| 13 | [zilliztech/memsearch](https://github.com/zilliztech/memsearch) | 2,222 | Python | 2026-06-30 | A persistent, unified memory layer for all your AI agents (e.g. Claude Code, Codex), backed by Markdown and Milvus. | [zilliztech.github.io/memsearch](https://zilliztech.github.io/memsearch/) |
+| 14 | [moorcheh-ai/memanto](https://github.com/moorcheh-ai/memanto) | 1,622 | Python | 2026-07-07 | Memory that AI Agents Love! | [memanto.ai](https://memanto.ai) |
+| 15 | [Prismer-AI/PrismerCloud](https://github.com/Prismer-AI/PrismerCloud) | 1,457 | TypeScript | 2026-06-11 | Prismer Cloud | [prismer.cloud](https://prismer.cloud) |
+| 16 | [semantica-agi/semantica](https://github.com/semantica-agi/semantica) | 1,398 | Python | 2026-07-09 | Semantica • Build AI systems that can explain, trace, and justify every decision. Knowledge graphs, context graphs, reasoning engines, provenance, and governance for production AI. | [getsemantica.ai](https://getsemantica.ai) |
+| 17 | [cortexkit/magic-context](https://github.com/cortexkit/magic-context) | 1,291 | TypeScript | 2026-07-08 | Unbounded context. Memory that manages itself. One session, for life. The hippocampus for coding agents, part of CortexKit. | [discord.gg/DSa65w8wuf](https://discord.gg/DSa65w8wuf) |
+| 18 | [LycheeMem/LycheeMem](https://github.com/LycheeMem/LycheeMem) | 1,124 | Python | 2026-07-07 | Lightweight Long-Term Memory for LLM Agents. | [lycheemem.github.io](https://lycheemem.github.io) |
+| 19 | [IAAR-Shanghai/Awesome-AI-Memory](https://github.com/IAAR-Shanghai/Awesome-AI-Memory) | 1,064 | Python | 2026-07-08 | Awesome AI Memory \| LLM Memory \| A curated knowledge base on AI memory for LLMs and agents, covering long-term memory, reasoning, retrieval, and memory-native system design. Awesome-AI-Memory 是一个 集中式、持续更新的 AI 记忆知识库，系统性整理了与 大模型记忆（LLM Memory）与智能体记忆（Agent Memory） 相关的前沿研究、工程框架、系统设计、评测基准与真实应用实践。 |  |
+| 20 | [jmerelnyc/Photo-agents](https://github.com/jmerelnyc/Photo-agents) | 836 | Python | 2026-07-03 | Autonomous self-evolving agents. Vision-grounded layered memory and self-written skills for LLM agents that operate your computer. |  |
+| 21 | [Shy2593666979/AgentChat](https://github.com/Shy2593666979/AgentChat) | 800 | Python | 2026-04-15 | AgentChat 是一个基于 LLM 的智能体交流平台，内置默认 Agent 并支持用户自定义 Agent。通过多轮对话和任务协作，Agent 可以理解并协助完成复杂任务。项目集成 LangChain、Function Call、MCP 协议、RAG、Memory、HITL、Skill、Milvus 和 ElasticSearch 等技术，实现高效的知识检索与工具调用，使用 FastAPI 构建高性能后端服务。 | [agentchat.cloud](http://agentchat.cloud) |
+| 22 | [NirDiamant/Agent_Memory_Techniques](https://github.com/NirDiamant/Agent_Memory_Techniques) | 769 | Jupyter Notebook | 2026-07-04 | Agent memory for LLMs: 30 runnable Jupyter notebooks covering conversation buffers, vector stores, knowledge graphs, episodic and semantic memory, MemGPT, Mem0, Letta, Zep, Graphiti, LoCoMo benchmarks, and production patterns. | [diamantai.substack.com](https://diamantai.substack.com/) |
+| 23 | [ctxrs/ctx](https://github.com/ctxrs/ctx) | 746 | Rust | 2026-07-09 | Search the coding agent history already on your machine | [ctx.rs](https://ctx.rs) |
+| 24 | [ReflexioAI/claude-smart](https://github.com/ReflexioAI/claude-smart) | 740 | Python | 2026-07-09 | Turns corrections into Preferences, Project-specific skills, and Shared skills for Claude Code, Codex, and OpenCode. | [www.reflexio.ai/docs/claude-smart](https://www.reflexio.ai/docs/claude-smart) |
+| 25 | [24kchengYe/MemoMind](https://github.com/24kchengYe/MemoMind) | 699 | Python | 2026-06-03 | Give your AI agent a brain that remembers. Local memory system for Claude Code — 100% private, GPU-accelerated, zero cloud dependency. |  |
+| 26 | [neo4j-labs/create-context-graph](https://github.com/neo4j-labs/create-context-graph) | 673 | Python | 2026-05-20 | AI agents with graph based reasoning memory, scaffolded in seconds | [create-context-graph.dev](https://create-context-graph.dev) |
+| 27 | [swarmclawai/swarmclaw](https://github.com/swarmclawai/swarmclaw) | 608 | TypeScript | 2026-06-30 | Open-source self-hosted AI agent runtime and multi-agent framework for autonomous agent swarms. Agent memory, MCP tools, schedules, delegation, and 23+ LLM providers (Claude, GPT, Gemini, OpenRouter, Ollama). A practical Claude Code and LangChain alternative. | [www.swarmclaw.ai](https://www.swarmclaw.ai) |
+| 28 | [swarmclawai/swarmvault](https://github.com/swarmclawai/swarmvault) | 601 | TypeScript | 2026-06-30 | The local-first LLM Wiki: open-source knowledge graph builder, RAG knowledge base, and agent memory store. Built on Andrej Karpathy's pattern. An Obsidian alternative for personal knowledge management, AI second brain, and durable Claude Code / Codex / OpenClaw memory. | [www.swarmvault.ai](https://www.swarmvault.ai) |
+| 29 | [framerslab/agentos](https://github.com/framerslab/agentos) | 589 | TypeScript | 2026-07-09 | TypeScript AI agent framework: cognitive memory, runtime tool forging, multi-agent orchestration, 11 LLM providers. | [agentos.sh](https://agentos.sh) |
+| 30 | [desplega-ai/agent-swarm](https://github.com/desplega-ai/agent-swarm) | 581 | TypeScript | 2026-07-09 | Your Company Agentic Operating System | [agent-swarm.dev](https://agent-swarm.dev) |
+| 31 | [dongshuyan/compass-skills](https://github.com/dongshuyan/compass-skills) | 556 | Python | 2026-07-08 | 司南：个性化 AI 任务总控 Skills 系统 /COMPASS: Personal Alignment Skills OS for AI Agents |  |
+| 32 | [AVIDS2/memorix](https://github.com/AVIDS2/memorix) | 531 | TypeScript | 2026-07-08 | Open-source cross-agent memory layer for coding agents via MCP. Compatible with Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Antigravity, OpenClaw, Hermes Agent, Oh-my-Pi, Pi, Copilot, Kiro, OpenCode, and Trae. |  |
+| 33 | [TeleAI-UAGI/Awesome-Agent-Memory](https://github.com/TeleAI-UAGI/Awesome-Agent-Memory) | 520 | Python | 2026-07-09 | Curated systems, benchmarks, and papers etc. on memory for LLMs/MLLMs --- long-term context, retrieval, and reasoning. |  |
+| 34 | [NeoLi00/memX](https://github.com/NeoLi00/memX) | 476 | TypeScript | 2026-05-26 | memX: self-learning, self-maintaining memory plugin for AI agents; native support for claude code, codex, and openclaw |  |
+| 35 | [TeleAI-UAGI/telemem](https://github.com/TeleAI-UAGI/telemem) | 471 | Python | 2026-07-07 | TeleMem is a high-performance drop-in replacement for Mem0, featuring semantic deduplication, long-term dialogue memory, and multimodal video reasoning. | [teleai-uagi.github.io/telemem](https://teleai-uagi.github.io/telemem/) |
+| 36 | [NevaMind-AI/memUBot](https://github.com/NevaMind-AI/memUBot) | 447 | TypeScript | 2026-05-06 | The Enterprise-Ready OpenClaw. Your Proactive AI Assistant That Remembers Everything | [memu.bot](https://memu.bot) |
+| 37 | [atomicstrata/atomicmemory](https://github.com/atomicstrata/atomicmemory) | 439 | TypeScript | 2026-06-23 | Portable semantic memory for AI agents: core engine, TypeScript SDK, framework adapters, MCP server, CLI, and host plugins. | [docs.atomicstrata.ai](https://docs.atomicstrata.ai) |
+| 38 | [angelnicolasc/graymatter](https://github.com/angelnicolasc/graymatter) | 436 | Go | 2026-06-13 | Three lines of code to give your AI agents persistent memory. Reduce 90% token consumption while also maintaining quality. |  |
+| 39 | [agentic-box/memora](https://github.com/agentic-box/memora) | 430 | Python | 2026-07-05 | Give your AI agents persistent memory. |  |
+| 40 | [syncable-dev/memtrace-public](https://github.com/syncable-dev/memtrace-public) | 379 | Python | 2026-07-09 | Structural memory for AI coding agents. Bi-temporal graph, MCP-native, zero LLM calls. Cursor · Claude Code · Codex · Hermes · VS Code · Windsurf. | [memtrace.io](https://memtrace.io) |
+| 41 | [mnemon-dev/mnemon](https://github.com/mnemon-dev/mnemon) | 375 | Go | 2026-07-06 | LLM-supervised persistent memory for AI agents — graph-based recall, cross-session knowledge, single binary. Works with Claude Code, OpenClaw, and any CLI agent. | [github.com/mnemon-dev/mnemon#readme](https://github.com/mnemon-dev/mnemon#readme) |
+| 42 | [buildingjoshbetter/TrueMemory](https://github.com/buildingjoshbetter/TrueMemory) | 365 | Python | 2026-06-24 | The memory your AI should have had from the start. Automatic capture, automatic recall, 100% local. One SQLite file, zero cloud. Works with Claude Code, Claude CLI, Cursor, Codex CLI, Gemini CLI. | [truememory.net](https://truememory.net) |
+| 43 | [neo4j-labs/agent-memory](https://github.com/neo4j-labs/agent-memory) | 356 | Python | 2026-07-09 | A graph-native memory system for AI agents and context graphs. Store conversations, build knowledge graphs, and let your agents learn from their own reasoning — all backed by Neo4j. | [neo4j.com/labs/agent-memory](https://neo4j.com/labs/agent-memory/) |
+| 44 | [beevibe-ai/beevibe](https://github.com/beevibe-ai/beevibe) | 335 | TypeScript | 2026-06-25 | The agent-native OS for companies. | [beevibe.ai](https://beevibe.ai) |
+| 45 | [CodeAbra/iai-personal-memory-engine](https://github.com/CodeAbra/iai-personal-memory-engine) | 333 | Python | 2026-07-03 | Independent Autistic Intelligence — a cyber brain for your AI. It never forgets a detail, remembers exactly what you said, and learns how you work over time. Free, local, works with Cursor, Claude Code, Codex, OpenClaw, Hermes and more. MIT. |  |
+| 46 | [Prompthon-IO/agent-systems-handbook](https://github.com/Prompthon-IO/agent-systems-handbook) | 326 | MDX | 2026-07-05 | A practical AI agents handbook covering agent systems, agentic workflows, LangGraph, MCP/A2A, context engineering, agent memory, evaluation, observability, and multi-agent architecture. Current trend focus: Gemini Interactions API and managed agents, emerging agent runtimes, and production AI workflow patterns. | [labs.prompthon.io](https://labs.prompthon.io/) |
+| 47 | [mathomhaus/guild](https://github.com/mathomhaus/guild) | 317 | Go | 2026-06-22 | Shared context, memory, and task coordination across AI coding agents. Single Go binary, local SQLite, hybrid keyword and semantic search. | [github.com/mathomhaus/guild](https://github.com/mathomhaus/guild) |
+| 48 | [DEEP-PolyU/Awesome-GraphMemory](https://github.com/DEEP-PolyU/Awesome-GraphMemory) | 315 |  | 2026-06-06 | A survey of Graph-based Agent Memory \| A curated list of resources (surveys, papers, benchmarks, and opensource projects) on graph-based agent memory. | [arxiv.org/abs/2602.05665](https://arxiv.org/abs/2602.05665) |
+| 49 | [aayoawoyemi/Ori-Mnemos](https://github.com/aayoawoyemi/Ori-Mnemos) | 313 | TypeScript | 2026-06-21 | Local-first persistent agentic memory powered by Recursive Memory Harness (RMH). Open source must win. | [orimnemos.com.](https://orimnemos.com.) |
+| 50 | [Goldentrii/AgentRecall-MCP](https://github.com/Goldentrii/AgentRecall-MCP) | 307 | JavaScript | 2026-07-05 | Correction-first persistent memory for AI agents. MCP server + SDK + CLI. Compounds across sessions. |  |
+| 51 | [yxf203/Awesome-Efficient-Agents](https://github.com/yxf203/Awesome-Efficient-Agents) | 283 |  | 2026-06-15 | Survey and paper list on efficiency-guided LLM agents (memory, tool learning, planning). |  |
+| 52 | [caura-ai/caura-memclaw](https://github.com/caura-ai/caura-memclaw) | 280 | Python | 2026-07-09 | Governed shared memory for AI agent fleets — multi-agent, multi-tenant, MCP-native. Trust tiers, keystone policies, audit trails, knowledge graph, self-improving retrieval. Apache 2.0. | [memclaw.net](https://memclaw.net) |
+| 53 | [jumbocontext/jumbo.cli](https://github.com/jumbocontext/jumbo.cli) | 259 | TypeScript | 2026-07-09 | Memory and Context Orchestration for Coding Agents | [jumbocontext.com](https://jumbocontext.com) |
+| 54 | [sachitrafa/YourMemory](https://github.com/sachitrafa/YourMemory) | 251 | Python | 2026-07-09 | Agentic AI memory with Ebbinghaus forgetting curve decay. +16pp better recall than Mem0 on LoCoMo. | [yourmemoryai.xyz](https://yourmemoryai.xyz/) |
+| 55 | [smaramwbc/statewave](https://github.com/smaramwbc/statewave) | 245 | Python | 2026-07-08 | Open-source memory runtime for AI agents — reproducible, provenance-tagged context bundles instead of query-time retrieval. Apache-2.0, self-hosted on Postgres + pgvector, Python + TypeScript SDKs. | [statewave.ai](https://statewave.ai) |
+| 56 | [nowledge-co/nowledge-mem](https://github.com/nowledge-co/nowledge-mem) | 235 |  | 2025-11-16 | Memory and context manager just works. | [mem.nowledge.co](https://mem.nowledge.co/) |
+| 57 | [XortexAI/XMem](https://github.com/XortexAI/XMem) | 232 | Python | 2026-06-03 | Xmem is a India's First open source multi-modal, multi-agentic long‑term memory layer for AI agents. | [www.xmem.in](https://www.xmem.in/) |
+| 58 | [varun29ankuS/shodh-memory](https://github.com/varun29ankuS/shodh-memory) | 230 | Rust | 2026-07-07 | Local, LLM-free memory for AI agents. A single offline Rust binary — deterministic and auditable — that learns from use, forgets the irrelevant, and strengthens what matters. No cloud, no API keys. | [www.shodh-memory.com](https://www.shodh-memory.com) |
+| 59 | [LearnPrompt/cc-harness-skills](https://github.com/LearnPrompt/cc-harness-skills) | 221 | Python | 2026-06-12 | Portable CC-inspired skills for memory, verification, multi-agent coordination, context compression, and proactive coding-agent workflows. |  |
+| 60 | [plur-ai/plur](https://github.com/plur-ai/plur) | 215 | TypeScript | 2026-07-09 | Shared memory for AI agents | [plur.ai](https://plur.ai) |
+| 61 | [Signet-AI/signetai](https://github.com/Signet-AI/signetai) | 212 | TypeScript | 2026-07-06 | Local-first identity, memory, and secrets for AI agents. Portable state across models and harnesses. | [signetai.sh](https://signetai.sh) |
+| 62 | [mindmuxai/brain.md](https://github.com/mindmuxai/brain.md) | 207 | JavaScript | 2026-07-07 | A persistent, file-based memory layer for coding agents — give Claude Code, Codex & others a project brain (durable decisions, requirements, constraints) via a zero-dependency CLI. | [projectbrain.md](https://projectbrain.md) |
+| 63 | [qualixar/superlocalmemory](https://github.com/qualixar/superlocalmemory) | 195 | Python | 2026-06-30 | World's first local-only AI memory to break 74% retrieval and 60% zero-LLM on LoCoMo. No cloud, no APIs, no data leaves your machine. Additionally, mode C (LLM/Cloud) - 87.7% LoCoMo. Research-backed. arXiv: 2603.14588 | [arxiv.org/abs/2603.14588](https://arxiv.org/abs/2603.14588) |
+| 64 | [alibaizhanov/mengram](https://github.com/alibaizhanov/mengram) | 183 | Python | 2026-06-17 | Human-like memory for AI agents — semantic, episodic & procedural. Experience-driven procedures that learn from failures. Free API, Python & JS SDKs, LangChain, CrewAI & OpenClaw integrations. | [mengram.io](https://mengram.io) |
+| 65 | [fpytloun/mnemory](https://github.com/fpytloun/mnemory) | 182 | Python | 2026-06-09 | A self-hosted, secure, feature-rich memory system for AI agents and assistants. Provides intelligent fact extraction and deduplication, with an artifact store for detailed content. |  |
+| 66 | [mainline-org/mainline](https://github.com/mainline-org/mainline) | 172 | Go | 2026-07-03 | Git-native memory for coding agents. Repo memory before the diff. | [mainline.sh](https://mainline.sh) |
+| 67 | [NodeDB-Lab/nodedb](https://github.com/NodeDB-Lab/nodedb) | 171 | Rust | 2026-07-09 | The memory & storage engine for AI agents. Multi-model, edge-to-cloud, PostgreSQL-compatible. | [nodedb.dev](https://nodedb.dev) |
+| 68 | [mage0535/hermes-memory-installer](https://github.com/mage0535/hermes-memory-installer) | 170 | Python | 2026-07-08 | 🧠 Production-grade memory sidecar for AI agents — gbrain + Hindsight + 3-tier recall. Agent-agnostic, battle-tested. \| 生产级外挂记忆系统，兼容Hermes/Claude/Cursor等任意AI智能体 | [github.com/mage0535/Knowledge-and-Memory-Management](https://github.com/mage0535/Knowledge-and-Memory-Management) |
+| 69 | [Patdolitse/piia-engram](https://github.com/Patdolitse/piia-engram) | 170 | Python | 2026-07-06 | Local-first AI memory you can see, edit, and override — portable across Claude Code, Codex, Cursor, Windsurf, and other MCP coding tools. | [pypi.org/project/piia-engram](https://pypi.org/project/piia-engram/) |
+| 70 | [markus-global/markus](https://github.com/markus-global/markus) | 165 | TypeScript | 2026-07-07 | Not another agent framework — an operating system for AI workforces. Autonomous agents coordinate, remember across sessions, review each other's work, and deliver while you sleep. One command. Zero dependencies. Manage your AI company from your phone. | [www.markus.global](https://www.markus.global) |
+| 71 | [yantrikos/yantrikdb-server](https://github.com/yantrikos/yantrikdb-server) | 164 | Rust | 2026-06-28 | Cognitive memory database for AI agents — consolidates duplicates, detects contradictions, fades stale memories via temporal decay. Rust, AGPL, ships as library / MCP server / HTTP cluster. | [yantrikdb.com](https://yantrikdb.com) |
+| 72 | [rzhub/GateMem](https://github.com/rzhub/GateMem) | 163 | Python | 2026-06-21 | GateMem: a benchmark and evaluation toolkit for memory governance in multi-principal shared-memory LLM agents. | [rzhub.github.io/GateMem/project.html](https://rzhub.github.io/GateMem/project.html) |
+| 73 | [TIMAN-group/PlugMem](https://github.com/TIMAN-group/PlugMem) | 161 | Python | 2026-07-09 | ICML 2026 · Plug-and-play long-term memory for LLM agents |  |
+| 74 | [kevin-hs-sohn/hipocampus](https://github.com/kevin-hs-sohn/hipocampus) | 160 | JavaScript | 2026-06-08 | Drop-in memory harness for AI agents — 3-tier memory, compaction tree, hybrid search. One command to set up. Works with Claude Code and OpenClaw. |  |
+| 75 | [techygarg/lattice](https://github.com/techygarg/lattice) | 159 | Shell | 2026-07-06 | Install engineering discipline into any AI coding assistant. Composable skills for design, implementation, review, and team standards. Better process, not just better prompts. |  |
+| 76 | [JasonDocton/lucid-memory](https://github.com/JasonDocton/lucid-memory) | 157 | TypeScript | 2026-02-20 | Memory for AI that works like yours—local, instant, persistent. 13x faster than Pinecone, 5x leaner than RAG. Finds what RAG misses. Zero cloud, zero cost. |  |
+| 77 | [jaredrhod/ai-memory-vault](https://github.com/jaredrhod/ai-memory-vault) | 157 |  | 2026-07-08 | Give your AI a real, persistent memory. The open-source system plus templates that turn an Obsidian vault into your AI's working memory. No vector database, just markdown. | [jaredrhod.com](https://jaredrhod.com) |
+| 78 | [eiondb/eion](https://github.com/eiondb/eion) | 157 | Go | 2025-07-02 | Shared Memory Storage for Multi-Agent Systems | [www.eiondb.com](https://www.eiondb.com/) |
+| 79 | [dcostenco/prism-coder](https://github.com/dcostenco/prism-coder) | 152 | TypeScript | 2026-07-07 | Persistent memory + local AI for coding agents. 1.7B–32B open-weight LLM fleet, cross-session Mind Palace, cognitive routing, L3 grounding verifier, multi-agent Hivemind. Works with Claude Code, Cursor, VS Code. Offline-first, HIPAA-ready. Free tier included. | [synalux.ai/prism-mcp](https://synalux.ai/prism-mcp) |
+| 80 | [Frappucc1no/recall-loom](https://github.com/Frappucc1no/recall-loom) | 145 | Python | 2026-07-07 | Project memory for long-running AI work across agents, models, and sessions. Keep context, decisions, progress, and next steps in local project files. | [github.com/Frappucc1no/recall-loom](https://github.com/Frappucc1no/recall-loom) |
+| 81 | [GuyMannDude/mnemo-cortex](https://github.com/GuyMannDude/mnemo-cortex) | 144 | Python | 2026-07-09 | Open-source cognitive coprocessor with active memory for AI agents. Persistent recall, semantic search, trajectory learning, overnight consolidation. Works with any LLM. | [projectsparks.ai](https://projectsparks.ai) |
+| 82 | [NickCirv/engram](https://github.com/NickCirv/engram) | 137 | TypeScript | 2026-06-22 | The context spine that 10x's every AI coding session. Live in 8 IDEs (Claude Code, Cursor, Cline, Continue, Aider, Codex, Windsurf, Zed) via npm + OpenVSX + Anthropic plugin directory. 89% measured token reduction. Local SQLite, zero cloud, Apache 2.0. | [github.com/NickCirv/engram](https://github.com/NickCirv/engram) |
+| 83 | [Uranid/mnem](https://github.com/Uranid/mnem) | 137 | Rust | 2026-07-06 | Git for AI Agent Knowledge. A persistent, versioned memory layer for AI systems. Hybrid GraphRAG retrieval. Runs entirely offline. |  |
+| 84 | [iamtouchskyer/memex](https://github.com/iamtouchskyer/memex) | 137 | TypeScript | 2026-06-20 | Zettelkasten-based persistent memory for AI coding agents. Works with Claude Code, Cursor, VS Code Copilot, Codex, Windsurf & any MCP client. No vector DB — just markdown + git sync. |  |
+| 85 | [Facets-cloud/flow](https://github.com/Facets-cloud/flow) | 136 | Go | 2026-07-06 | Turn isolated Claude sessions into a continuous working relationship | [facets-cloud.github.io/flow](https://facets-cloud.github.io/flow/) |
+| 86 | [nowledge-co/community](https://github.com/nowledge-co/community) | 129 | Python | 2026-07-09 | Community Repo for Nowledge Labs Products |  |
+| 87 | [radimsem/remindb](https://github.com/radimsem/remindb) | 121 | Go | 2026-06-22 | An agentic memory database that cuts session tokens by 82–99%. One portable SQLite file — your agent's memory, anywhere. |  |
+| 88 | [Thinklanceai/agentkeeper](https://github.com/Thinklanceai/agentkeeper) | 119 | Python | 2026-06-09 | Own your AI memory — import ChatGPT, Claude and Gemini exports, see what each AI knows about you. Checkpoint/restore and cross-model continuity for agents. | [pypi.org/project/agentkeeper-ai](https://pypi.org/project/agentkeeper-ai/) |
+| 89 | [MemTensor/MemPrivacy](https://github.com/MemTensor/MemPrivacy) | 116 | Python | 2026-06-16 | MemPrivacy is a privacy-preserving personalized memory management framework for edge-cloud agents. |  |
+| 90 | [ArgentAIOS/argentos-core](https://github.com/ArgentAIOS/argentos-core) | 116 | TypeScript | 2026-07-09 | Your own AI operating system. Self-hosted. Self-improving. One continuous, truthful, self-directed mind. | [argentos.ai](https://argentos.ai) |
+| 91 | [XMUDeepLIT/MemGraphRAG](https://github.com/XMUDeepLIT/MemGraphRAG) | 114 | Python | 2026-06-20 | [KDD 2026] MemGraphRAG: Memory-based Multi-Agent System for Graph Retrieval-Augmented Generation | [arxiv.org/pdf/2606.00610](https://arxiv.org/pdf/2606.00610) |
+| 92 | [namidb/namidb](https://github.com/namidb/namidb) | 111 | Rust | 2026-07-06 | Graph database native to the cloud. Embedded, multi-tenant, built on object storage. | [namidb.com](https://namidb.com) |
+| 93 | [ogham-mcp/ogham-mcp](https://github.com/ogham-mcp/ogham-mcp) | 111 | Python | 2026-07-08 | Shared memory MCP server — persistent, searchable, cross-client Claude, Opencode | [ogham-mcp.dev](https://ogham-mcp.dev) |
+| 94 | [mmethodz/dreamgraph](https://github.com/mmethodz/dreamgraph) | 110 | TypeScript | 2026-07-06 | DreamGraph is a graph-governed conceptual development environment (CDE) that turns plans, architecture decisions, and project knowledge into auditable execution through a persistent cognitive graph. |  |
+| 95 | [nambok/mentedb](https://github.com/nambok/mentedb) | 105 | Rust | 2026-07-06 | A cognition aware database engine for AI agent memory. Purpose built in Rust with WAL, HNSW, knowledge graphs, and speculative context pre assembly. Not a wrapper, a ground up storage engine that thinks. | [mentedb.com](https://mentedb.com) |
+| 96 | [ctxr-dev/llm-wiki-memory](https://github.com/ctxr-dev/llm-wiki-memory) | 104 | JavaScript | 2026-07-05 | Local, git-versioned memory for AI coding agents. No RAG, no Docker, no external service. Capture, compile, recall over a local LLM wiki with on-device embeddings and an MCP server. |  |
 
 </details>
 
-### `"llm observability" in:name` - 86 prospects
+### `"agent memory" in:description` - 88 prospects
 
 <details>
 <summary><strong>Show table</strong></summary>
 
 | # | Repository | Stars | Language | Last push | Description | Website |
 | ---: | --- | ---: | --- | --- | --- | --- |
-| 1 | [benitomartin/llm-observability-opik](https://github.com/benitomartin/llm-observability-opik) | 31 | Python | 2025-06-19 | LLM Evaluation and Observability System for Football Content | [decodingml.substack.com/p/your-ai-football-assist-eval-guide](https://decodingml.substack.com/p/your-ai-football-assist-eval-guide) |
-| 2 | [AstronomerAmber/LLM_Observability](https://github.com/AstronomerAmber/LLM_Observability) | 11 | Jupyter Notebook | 2024-05-30 |  |  |
-| 3 | [deepaksatna/LLM-Observability-Stack](https://github.com/deepaksatna/LLM-Observability-Stack) | 7 | Python | 2026-01-19 | A comprehensive observability stack for monitoring LLM inference and training workloads on Kubernetes with NVIDIA GPUs. This project provides Prometheus metrics collection, Grafana dashboards, GPU monitoring with DCGM, Kubernetes cluster monitoring, and custom LLM metrics |  |
-| 4 | [pdichone/llm-observability-course](https://github.com/pdichone/llm-observability-course) | 6 | Python | 2026-01-21 |  |  |
-| 5 | [TrueWatchTech/llm-observability-demo-setup-guide](https://github.com/TrueWatchTech/llm-observability-demo-setup-guide) | 6 | Python | 2025-12-04 | This guide helps you instrument your AI/LLM chatbot (built on the Dify platform with Ollama LLM) with observability using TrueWatch and DataKit. |  |
-| 6 | [hghalebi/rust-llm-observability-guide](https://github.com/hghalebi/rust-llm-observability-guide) | 5 | Shell | 2026-02-27 | OpenTelemetry for Rig Agents: Practical tutorial from first run to production rigor |  |
-| 7 | [vpr1995/llm-observability](https://github.com/vpr1995/llm-observability) | 4 | TypeScript | 2026-03-30 |  |  |
-| 8 | [dynatrace-wwse/enablement-gen-ai-llm-observability](https://github.com/dynatrace-wwse/enablement-gen-ai-llm-observability) | 2 | HTML | 2026-07-07 |  | [dynatrace-wwse.github.io/enablement-gen-ai-llm-observability](https://dynatrace-wwse.github.io/enablement-gen-ai-llm-observability/) |
-| 9 | [aminespinoza10/LLM-Observability](https://github.com/aminespinoza10/LLM-Observability) | 2 | Shell | 2026-01-27 | This repository is going to show you how to deploy a basic observability stack when using a local agent with Ollama |  |
-| 10 | [donlelef/llm-observability-talk](https://github.com/donlelef/llm-observability-talk) | 2 | Python | 2025-05-29 | Code snippets for the talk "Observability for the GenAI Era" |  |
-| 11 | [HrushikeshPawar/LLM-Observability-Monitoring](https://github.com/HrushikeshPawar/LLM-Observability-Monitoring) | 2 | Jupyter Notebook | 2024-11-19 | Hands-on notebooks for LLM app tracing, observability and evaluation: Arize Phoenix, OpenTelemetry, MLflow and eval pipelines |  |
-| 12 | [ro-anderson/datadog-llm-observability-workshop](https://github.com/ro-anderson/datadog-llm-observability-workshop) | 2 |  | 2025-10-29 | notes and code from the workshop. |  |
-| 13 | [ENGRZULQARNAIN/llm_observability_and_monitoring_tool](https://github.com/ENGRZULQARNAIN/llm_observability_and_monitoring_tool) | 2 | Python | 2025-06-25 |  |  |
-| 14 | [AllTrue-ai/alltrue-llm-observability](https://github.com/AllTrue-ai/alltrue-llm-observability) | 1 | Python | 2026-04-24 |  |  |
-| 15 | [samit-manna/llm-observability](https://github.com/samit-manna/llm-observability) | 1 | Python | 2025-10-03 | LLL Observability |  |
-| 16 | [wentbackward/llm-observability](https://github.com/wentbackward/llm-observability) | 1 | Shell | 2026-04-27 | Monitor your LLM servers - Prometheus endpoint for scraping llm-proxy and nv-monitor endpoints |  |
-| 17 | [deepan8545/LLM-Observability](https://github.com/deepan8545/LLM-Observability) | 1 | Python | 2026-03-31 | Production LLM observability layer - Langfuse tracing, p50/p95/p99 latency, cost-per-request, LLM-as-judge quality scoring (4.4/5), and CI benchmark gate on every PR. |  |
-| 18 | [mukulchhabra23/llm-observability](https://github.com/mukulchhabra23/llm-observability) | 1 |  | 2026-02-25 | Reference toolkit for logging, tracing, evaluation telemetry, and monitoring patterns for production LLM applications with schema examples and instrumentation strategies. |  |
-| 19 | [distroaryan/llm-observability](https://github.com/distroaryan/llm-observability) | 1 | Python | 2026-04-02 | created to learn how production grade and reliable llm systems are built |  |
-| 20 | [DmitryDmitriadi/llm-observability-evaluation](https://github.com/DmitryDmitriadi/llm-observability-evaluation) | 1 |  | 2026-05-16 | Case study: unified observability + evaluation for automation and conversational AI agents. Versioned error catalog, multi-signal confidence, cost meters. |  |
-| 21 | [PrithviHL/llm-observability-dashboard](https://github.com/PrithviHL/llm-observability-dashboard) | 1 | Python | 2026-06-24 | Self-hosted LLM observability & eval dashboard - ingests OpenTelemetry GenAI spans from OpenAI, Anthropic, Google, LangChain, LlamaIndex, and vLLM; runs DeepEval/RAGAS eval jobs; detects prompt drift via PSI; and alerts via Prometheus → Slack/PagerDuty. Built with ClickHouse, Postgres, and Next.js 15. |  |
-| 22 | [mustifiz/LLM_Observability_Workshop](https://github.com/mustifiz/LLM_Observability_Workshop) | 1 | Jupyter Notebook | 2025-09-08 |  |  |
-| 23 | [vaishnavi1144/llm-observability-platform](https://github.com/vaishnavi1144/llm-observability-platform) | 1 | Python | 2026-05-22 |  |  |
-| 24 | [hunyaochong/llm-observability-workflow](https://github.com/hunyaochong/llm-observability-workflow) | 1 |  | 2025-08-12 |  |  |
-| 25 | [anglerfishlyy/grafana-llm-observability](https://github.com/anglerfishlyy/grafana-llm-observability) | 1 | TypeScript | 2025-09-21 | Grafana plugin to monitor LLM requests: latency, tokens, cost, errors, and prompt comparison. Data ingestion via JSON; supports OpenAI, Anthropic, Llama, etc. |  |
-| 26 | [cmangun/llm-observability-dashboards](https://github.com/cmangun/llm-observability-dashboards) | 1 | JavaScript | 2025-12-29 | Prometheus + Grafana observability stack for LLM-powered systems | [field-deployed-engineer.vercel.app](https://field-deployed-engineer.vercel.app) |
-| 27 | [Pradeep-Shinde/llm-observability-platform](https://github.com/Pradeep-Shinde/llm-observability-platform) | 1 | Python | 2026-05-31 | Production-inspired observability platform for LLM applications using OpenWebUI, LiteLLM, Ollama, Langfuse, Prometheus, and Grafana. |  |
-| 28 | [rahul-alhan/llm-observability-stack](https://github.com/rahul-alhan/llm-observability-stack) | 1 | Python | 2026-06-09 | Langfuse tracing + Prometheus SLOs + Streamlit cohort drilldown for production LangGraph agents - token cost, p95 latency, tool-call success, prompt-version A/B |  |
-| 29 | [Chandanag8197/LLM-observability-dashboard](https://github.com/Chandanag8197/LLM-observability-dashboard) | 1 | Python | 2026-03-15 |  |  |
-| 30 | [nagaraj07/llm-observability-system](https://github.com/nagaraj07/llm-observability-system) | 1 | Python | 2026-03-18 |  |  |
-| 31 | [SSG-YERRAMSETTI/LLM-Observability-Polling-Pipeline](https://github.com/SSG-YERRAMSETTI/LLM-Observability-Polling-Pipeline) | 1 | Python | 2026-05-18 | Real-time monitoring and evaluation of production LLM systems across GCP and AWS |  |
-| 32 | [seanlee10/llm-observability-with-arize-phoenix](https://github.com/seanlee10/llm-observability-with-arize-phoenix) | 1 | Jupyter Notebook | 2024-10-22 |  |  |
-| 33 | [deepaksatna/LLM-Observability-Stack-v2.0](https://github.com/deepaksatna/LLM-Observability-Stack-v2.0) | 1 | HTML | 2026-02-12 | A comprehensive, production-ready observability stack for monitoring LLM inference workloads on Kubernetes with NVIDIA GPUs. This version focuses on ELK Stack (Elasticsearch, Logstash, Kibana, Filebeat) for centralized log management and Infrastructure Testing with Pytest for deployment validation. |  |
-| 34 | [kbsivacse/llm-observability](https://github.com/kbsivacse/llm-observability) | 0 |  | 2025-12-06 | A collection of demos and documentation for end-to-end LLM observability. Track, evaluate, and debug large language models with confidence. |  |
-| 35 | [erwinfri/alltrue-llm-observability](https://github.com/erwinfri/alltrue-llm-observability) | 0 | Python | 2026-01-17 | Fork of the https://github.com/AllTrue-ai/alltrue-llm-observability repository |  |
-| 36 | [kevinastuhuaman/llm-observability](https://github.com/kevinastuhuaman/llm-observability) | 0 |  | 2026-03-02 | Self-hosted LLM observability with Langfuse on Lightsail, fire-and-forget ingestion, and lightweight tracing. |  |
-| 37 | [ozzyozbourne/llm-observability](https://github.com/ozzyozbourne/llm-observability) | 0 | Python | 2025-11-08 |  |  |
-| 38 | [ByteWise-Cookie/llm-observability](https://github.com/ByteWise-Cookie/llm-observability) | 0 | Python | 2025-12-31 | LLM observability system that surfaces hallucination risk and quality degradation in Gemini-powered applications using Datadog. |  |
-| 39 | [sqcvt/LLM-OBSERVABILITY](https://github.com/sqcvt/LLM-OBSERVABILITY) | 0 | C++ | 2026-06-30 |  |  |
-| 40 | [codemits/LLM-observability](https://github.com/codemits/LLM-observability) | 0 | TypeScript | 2025-12-02 |  |  |
-| 41 | [sbolla-ai/llm-observability](https://github.com/sbolla-ai/llm-observability) | 0 | Python | 2026-02-26 | production-grade repository for End-to-End Observability for AI/LLM Workloads using OpenTelemetry and Python |  |
-| 42 | [SHUB2205/LLM-Observability](https://github.com/SHUB2205/LLM-Observability) | 0 | Python | 2025-09-15 |  |  |
-| 43 | [sdace9719/llm-observability](https://github.com/sdace9719/llm-observability) | 0 | Python | 2025-12-26 |  |  |
-| 44 | [cerenaaa/llm-observability](https://github.com/cerenaaa/llm-observability) | 0 | Python | 2026-05-27 | Tracing, logging, and cost monitoring for LLM applications in production |  |
-| 45 | [Aho-Bakaa/llm_observability](https://github.com/Aho-Bakaa/llm_observability) | 0 | Python | 2026-04-23 |  |  |
-| 46 | [mzandinia/llm-observability](https://github.com/mzandinia/llm-observability) | 0 | Python | 2026-07-08 | Portfolio flagship - see README |  |
-| 47 | [rifahnazar1/llm-observability](https://github.com/rifahnazar1/llm-observability) | 0 | Python | 2026-02-26 |  |  |
-| 48 | [vyshnavi841/LLM_Observability](https://github.com/vyshnavi841/LLM_Observability) | 0 | Python | 2026-03-20 |  |  |
-| 49 | [Shuvodeep/llm_observability](https://github.com/Shuvodeep/llm_observability) | 0 | Python | 2026-03-19 |  |  |
-| 50 | [MaximilianoRodrigoSoria/llmops-observability](https://github.com/MaximilianoRodrigoSoria/llmops-observability) | 0 | Python | 2026-07-08 |  |  |
-| 51 | [Shubhamgiri2004/LLM-Observability](https://github.com/Shubhamgiri2004/LLM-Observability) | 0 | TypeScript | 2026-05-24 |  |  |
-| 52 | [juliopessan/llm-observability](https://github.com/juliopessan/llm-observability) | 0 | TypeScript | 2026-03-27 |  |  |
-| 53 | [Hansel-Christopher/llm-observability](https://github.com/Hansel-Christopher/llm-observability) | 0 | Python | 2024-06-16 |  |  |
-| 54 | [yan-labs/llm-observability](https://github.com/yan-labs/llm-observability) | 0 | HTML | 2026-03-26 |  |  |
-| 55 | [haffo/llm-observability](https://github.com/haffo/llm-observability) | 0 | Python | 2026-04-18 |  |  |
-| 56 | [Srihari080802/LLM-Observability](https://github.com/Srihari080802/LLM-Observability) | 0 | Python | 2026-05-24 |  |  |
-| 57 | [skiingfalcon/llm-observability](https://github.com/skiingfalcon/llm-observability) | 0 | Python | 2026-06-08 |  |  |
-| 58 | [Divya2610/LLM-Observability](https://github.com/Divya2610/LLM-Observability) | 0 | Python | 2026-06-04 | Built a production-grade LLM Observability Platform with FastAPI, Prometheus and Grafana automatically evaluates every LLM response for relevance, faithfulness and toxicity, with real-time dashboards tracking latency, token usage and model health across providers. |  |
-| 59 | [soutoner/llm-observability](https://github.com/soutoner/llm-observability) | 0 | Vue | 2026-06-17 | Content of the talk for rindus' Navigators of Code 2026 |  |
-| 60 | [AddChew/llm-observability](https://github.com/AddChew/llm-observability) | 0 | Python | 2026-03-15 |  |  |
-| 61 | [recrsn/llm-observability](https://github.com/recrsn/llm-observability) | 0 | Python | 2025-10-18 | LLM Observability example |  |
-| 62 | [vee-studio1/llm-observability](https://github.com/vee-studio1/llm-observability) | 0 | Python | 2026-02-13 |  |  |
-| 63 | [espirado/llm-observability](https://github.com/espirado/llm-observability) | 0 | Python | 2025-12-15 |  |  |
-| 64 | [Prof-it/llm-observability](https://github.com/Prof-it/llm-observability) | 0 | Python | 2026-06-23 | This repository provides anonymized qualitative research materials underpinning the "Agentic RAG and LLMs for Holistic Observability in Fintech" case study. Code includes QR-code generator. |  |
-| 65 | [pankaj45/llm-observability](https://github.com/pankaj45/llm-observability) | 0 | Java | 2026-05-25 | A production-grade AI observability and inference logging platform with a streaming chatbot UI, live-data grounding via context orchestration, regex-based PII redaction, event-driven ingestion pipeline, multi-turn conversation continuity, and an operator analytics dashboard. |  |
-| 66 | [cyohan21/llm-observability](https://github.com/cyohan21/llm-observability) | 0 | TypeScript | 2025-09-19 |  |  |
-| 67 | [JephinJose/llm-observability](https://github.com/JephinJose/llm-observability) | 0 | TypeScript | 2026-07-01 |  |  |
-| 68 | [project1shelby-ui/llm-observability-](https://github.com/project1shelby-ui/llm-observability-) | 0 |  | 2026-07-03 | Open-source LLM observability platform - SDK auto-captures cost/latency/tokens per call, NLI-based hallucination detection, prompt version control, and golden dataset regression testing. |  |
-| 69 | [Partha-2/llm-observability](https://github.com/Partha-2/llm-observability) | 0 | JavaScript | 2026-05-22 |  |  |
-| 70 | [gopalpamidimukkala/llm-observability](https://github.com/gopalpamidimukkala/llm-observability) | 0 | TypeScript | 2026-05-23 |  |  |
-| 71 | [Anirudh11011/LLM-Observability](https://github.com/Anirudh11011/LLM-Observability) | 0 | Python | 2026-06-23 |  |  |
-| 72 | [av1kav/llm-observability](https://github.com/av1kav/llm-observability) | 0 |  | 2025-07-18 | An evaluation of LLMs through the Comet Opik OSS Observability framework |  |
-| 73 | [tkilper/llm-observability](https://github.com/tkilper/llm-observability) | 0 | Python | 2026-04-16 | End-to-end streaming pipeline for LLM API observability - |  |
-| 74 | [gaoyuan796/llm-observability](https://github.com/gaoyuan796/llm-observability) | 0 | Jupyter Notebook | 2025-09-22 |  |  |
-| 75 | [nbrosse/llm-observability](https://github.com/nbrosse/llm-observability) | 0 | Python | 2025-08-15 | LLM observability using langfuse and a fasthtml chatbot |  |
-| 76 | [chandanCoding/llm-observability](https://github.com/chandanCoding/llm-observability) | 0 | Python | 2026-06-28 | Tracing, token-cost accounting, and evaluation metrics for production LLM applications |  |
-| 77 | [22A91A61E8/llm-observability](https://github.com/22A91A61E8/llm-observability) | 0 | Python | 2026-06-10 |  |  |
-| 78 | [praveen-netinti/llm-observability](https://github.com/praveen-netinti/llm-observability) | 0 | TypeScript | 2026-06-23 | Trace, debug, and monitor LLM applications with interactive traces, Slack alerts, issues, and analytics. | [neosigma-llm-observability.vercel.app](https://neosigma-llm-observability.vercel.app) |
-| 79 | [Srieehari/LLM_Observability](https://github.com/Srieehari/LLM_Observability) | 0 | TypeScript | 2026-07-03 |  |  |
-| 80 | [Srimonchaari/LLM-Observability](https://github.com/Srimonchaari/LLM-Observability) | 0 | Python | 2026-03-29 |  |  |
-| 81 | [Sebastian-411/llm-observability](https://github.com/Sebastian-411/llm-observability) | 0 | Python | 2026-06-09 |  |  |
-| 82 | [Shruti-lab/llm-observability](https://github.com/Shruti-lab/llm-observability) | 0 | Python | 2026-05-14 |  |  |
-| 83 | [sahared/llm-observability](https://github.com/sahared/llm-observability) | 0 | Go | 2025-12-15 | Production-ready observability platform for AI agents and LLM applications. |  |
-| 84 | [Manoj-py/llm-observability](https://github.com/Manoj-py/llm-observability) | 0 | Go | 2026-05-28 |  |  |
-| 85 | [IshaVishwakarma/llm-observability](https://github.com/IshaVishwakarma/llm-observability) | 0 | Python | 2026-05-08 |  |  |
-| 86 | [Gabrielteixeira2004/LLM_Observability](https://github.com/Gabrielteixeira2004/LLM_Observability) | 0 | Python | 2025-12-11 |  |  |
+| 1 | [vectorize-io/hindsight](https://github.com/vectorize-io/hindsight) | 18,163 | Python | 2026-07-09 | Hindsight: Agent Memory That Learns | [hindsight.vectorize.io](https://hindsight.vectorize.io/) |
+| 2 | [TencentCloud/TencentDB-Agent-Memory](https://github.com/TencentCloud/TencentDB-Agent-Memory) | 7,949 | TypeScript | 2026-06-26 | TencentDB Agent Memory delivers fully local long-term memory for AI Agents via a 4-tier progressive pipeline, with zero external API dependencies. |  |
+| 3 | [agiresearch/A-mem](https://github.com/agiresearch/A-mem) | 1,095 | Python | 2025-12-12 | A-MEM: Agentic Memory for LLM Agents |  |
+| 4 | [WujiangXu/A-mem](https://github.com/WujiangXu/A-mem) | 915 | Python | 2026-03-05 | The code for NeurIPS 2025 paper "A-Mem: Agentic Memory for LLM Agents" |  |
+| 5 | [coleam00/mcp-mem0](https://github.com/coleam00/mcp-mem0) | 678 | Python | 2025-04-13 | MCP server for long term agent memory with Mem0. Also useful as a template to get you started building your own MCP server with Python! |  |
+| 6 | [zhangfengcdt/memoir](https://github.com/zhangfengcdt/memoir) | 589 | Python | 2026-06-30 | Hierarchical Agent Memory with Git-Like Version Control | [zhangfengcdt.github.io/memoir](https://zhangfengcdt.github.io/memoir/) |
+| 7 | [Dicklesworthstone/cass_memory_system](https://github.com/Dicklesworthstone/cass_memory_system) | 393 | TypeScript | 2026-07-08 | Procedural memory for AI coding agents: transforms scattered session history into persistent, cross-agent memory so every agent learns from every other |  |
+| 8 | [WujiangXu/A-mem-sys](https://github.com/WujiangXu/A-mem-sys) | 371 | Python | 2026-03-15 | A-MEM: Agentic Memory for LLM Agents |  |
+| 9 | [FareedKhan-dev/optimize-ai-agent-memory](https://github.com/FareedKhan-dev/optimize-ai-agent-memory) | 328 | Jupyter Notebook | 2025-07-12 | 9 Different Ways to Optimize AI Agent Memories | [medium.com/@fareedkhandev/optimizing-memory-of-ai-agents-for-better-performance-using-67d813e3d796](https://medium.com/@fareedkhandev/optimizing-memory-of-ai-agents-for-better-performance-using-67d813e3d796) |
+| 10 | [YMX899/MemoryCloud](https://github.com/YMX899/MemoryCloud) | 318 | Python | 2026-06-09 | The AI agent memory cloud you’ll wish existed yesterday. Manage agent memory like a GitHub repo: switch devices, switch agents, switch sessions, and your AI still remembers who you are, what it has learned, the rules you taught it, where the project left off, and what to do next. |  |
+| 11 | [esaradev/icarus-memory-infra](https://github.com/esaradev/icarus-memory-infra) | 293 | Python | 2026-05-08 | Agent memory infrastructure: provenance, rollback, lifecycle/supersession, three-layer model (working memory + session archive + wiki). Markdown on disk, MCP-native. | [x.com/IcarusHermes](https://x.com/IcarusHermes) |
+| 12 | [ZhangHanDong/mempal](https://github.com/ZhangHanDong/mempal) | 271 | Rust | 2026-07-09 | AI Agent Memory | [zhanghandong.github.io/mempalace-book/en/ch26-why-rewrite-in-rust.html](https://zhanghandong.github.io/mempalace-book/en/ch26-why-rewrite-in-rust.html) |
+| 13 | [gavdalf/total-recall](https://github.com/gavdalf/total-recall) | 268 | Shell | 2026-04-01 | Total Recall — Autonomous Agent Memory. The only memory system that watches on its own. Five-layer observational memory for OpenClaw agents. ~$0.10/month. |  |
+| 14 | [rikouu/cortex](https://github.com/rikouu/cortex) | 240 | TypeScript | 2026-06-09 | 🧠 Cortex - Universal AI Agent Memory Service |  |
+| 15 | [yyyujintang/Awesome-Agent-Memory-Papers](https://github.com/yyyujintang/Awesome-Agent-Memory-Papers) | 216 |  | 2026-04-25 | Awesome Papers related to Agent Memory: methods, benchmarks and surveys. Website: https://yyyujintang.github.io/Awesome-Agent-Memory-Papers/ |  |
+| 16 | [edwin-hao-ai/Awareness-Local](https://github.com/edwin-hao-ai/Awareness-Local) | 213 | JavaScript | 2026-05-04 | Local-first AI agent memory — one command, works offline, no account needed. Give your Claude Code, Cursor, Windsurf, OpenClaw agent persistent memory. Markdown storage, hybrid search (FTS5 + embedding), MCP protocol, Web dashboard. |  |
+| 17 | [glommer/memelord](https://github.com/glommer/memelord) | 187 | TypeScript | 2026-05-20 | Memelord is an in-process agentic memory system |  |
+| 18 | [petabridge/memorizer](https://github.com/petabridge/memorizer) | 177 | C# | 2026-07-04 | Vector-search powered agent memory MCP server |  |
+| 19 | [Shiyao-Huang/awesome-agent-evolution](https://github.com/Shiyao-Huang/awesome-agent-evolution) | 172 | JavaScript | 2026-07-04 | Open survey and evidence map for AI agent evolution, self-evolving agents, memory, skills, harnesses, benchmarks, and agent-swarm systems. | [agent-evolution.com](https://agent-evolution.com/) |
+| 20 | [AgentMemoryWorld/Awesome-Agent-Memory](https://github.com/AgentMemoryWorld/Awesome-Agent-Memory) | 171 |  | 2026-02-11 | [Up-To-Date] Awesome Agent Memory Paper Resource | [arxiv.org/abs/2602.06052](https://arxiv.org/abs/2602.06052) |
+| 21 | [410979729/scope-recall-hermes](https://github.com/410979729/scope-recall-hermes) | 167 | Python | 2026-07-08 | Hermes Agent memory plugin/provider for scope-aware recall, SQLite truth, LanceDB semantic search, and hybrid retrieval. |  |
+| 22 | [MemTensor/HaluMem](https://github.com/MemTensor/HaluMem) | 143 | Python | 2026-04-30 | HaluMem is the first operation level hallucination evaluation benchmark tailored to agent memory systems. |  |
+| 23 | [sheawinkler/ContextLattice](https://github.com/sheawinkler/ContextLattice) | 134 | Go | 2026-07-06 | ContextLattice is the local-first control plane for long-horizon agent memory, coordination, and behavioral provenance. | [contextlattice.io](https://contextlattice.io) |
+| 24 | [avbiswas/mem0-dspy](https://github.com/avbiswas/mem0-dspy) | 133 | Python | 2026-01-14 | A minimalist implementation of Agentic Memory architecture is DSPy |  |
+| 25 | [Staks-sor/ai-free](https://github.com/Staks-sor/ai-free) | 118 | JavaScript | 2026-07-07 | Free local AI client for DeepSeek, Qwen and ChatGPT with OpenAI/Anthropic-compatible API, CLI, code agent, memory, skills and VS Code plugin. | [github.com/Staks-sor/ai-free#readme](https://github.com/Staks-sor/ai-free#readme) |
+| 26 | [HU-xiaobai/xMemory](https://github.com/HU-xiaobai/xMemory) | 116 | Python | 2026-02-25 | Paper Arxiv 2026.02 Beyond RAG for Agent Memory: Retrieval by Decoupling and Aggregation |  |
+| 27 | [mpieniak01/Venom](https://github.com/mpieniak01/Venom) | 109 | Python | 2026-07-08 | Venom is an experimental, local-first AI system designed to orchestrate agents, memory and decision logic in a controlled, auditable way. |  |
+| 28 | [avibebuilder/claude-prime](https://github.com/avibebuilder/claude-prime) | 106 | Python | 2026-05-16 | You've heard Claude Code can do amazing things. Skills, hooks, agents, memory systems — but who has time to figure all that out? Claude Prime sets it up for you in one command. | [claudeprime.avibebuilder.com](https://claudeprime.avibebuilder.com) |
+| 29 | [memforks-dev/memforks](https://github.com/memforks-dev/memforks) | 105 | TypeScript | 2026-06-22 | Git for AI agent memory | [memforks.dev](https://memforks.dev) |
+| 30 | [Ariestar/sivtr](https://github.com/Ariestar/sivtr) | 99 | Rust | 2026-07-09 | A unified agent memory workspace for human and agent | [sivtr.pages.dev](https://sivtr.pages.dev/) |
+| 31 | [claudomat-dev/claudomat-mini](https://github.com/claudomat-dev/claudomat-mini) | 92 | Shell | 2026-04-26 | Battle-tested operating system for shipping product with LLM coding agents. 17-stage wave loop, two-reviewer gate, dual-document agent memory, full template library. Everything you need to turn agentic coding from vibes into a repeatable process. |  |
+| 32 | [28naem-del/mnemosyne](https://github.com/28naem-del/mnemosyne) | 88 | TypeScript | 2026-06-02 | Cognitive Memory OS for AI Agents — persistent, self-improving, multi-agent memory | [mnemosy.ai](https://mnemosy.ai) |
+| 33 | [Pimzino/agentic-tools-mcp](https://github.com/Pimzino/agentic-tools-mcp) | 87 | TypeScript | 2025-06-20 | A comprehensive Model Context Protocol (MCP) server providing AI assistants with powerful task management and agent memories capabilities with project-specific storage. |  |
+| 34 | [kennethlaw325/awesome-llm-knowledge-systems](https://github.com/kennethlaw325/awesome-llm-knowledge-systems) | 85 | HTML | 2026-06-03 | The Map Everyone's Missing: LLM Knowledge Engineering in 2026 — First unified guide connecting RAG, Context Engineering, Harness Engineering, Skill Systems, Agent Memory, MCP, and Progressive Disclosure |  |
+| 35 | [noamschwartz/atlas-memory-demo](https://github.com/noamschwartz/atlas-memory-demo) | 84 | Python | 2026-05-31 | Atlas — Agent Memory on Elasticsearch. Three indices, hybrid recall with a reranker, supersession, decay, and per-user DLS isolation. |  |
+| 36 | [The-AI-Alliance/semiont](https://github.com/The-AI-Alliance/semiont) | 84 | TypeScript | 2026-07-09 | Semiont supports human+ai collaborative knowledge work. Use it as: a Wiki, Knowledge Base, Context Graph, Semantic Layer, or Agentic Memory. | [the-ai-alliance.github.io/semiont](https://the-ai-alliance.github.io/semiont/) |
+| 37 | [Agentscreator/engram-memory](https://github.com/Agentscreator/engram-memory) | 82 | Python | 2026-05-23 | Agent memory platform. | [www.engram-memory.com](https://www.engram-memory.com) |
+| 38 | [sqliteai/sqlite-memory](https://github.com/sqliteai/sqlite-memory) | 79 | C | 2026-06-10 | Markdown based AI agent memory with semantic search, hybrid retrieval, and offline-first sync between agents. | [sqlite.ai](https://sqlite.ai) |
+| 39 | [toby-bridges/epro-memory](https://github.com/toby-bridges/epro-memory) | 71 | TypeScript | 2026-03-17 | LLM-powered agent memory with 6-category classification and L0/L1/L2 tiered structure |  |
+| 40 | [ktao732084-arch/openclaw_memory_supersystem-v1.0](https://github.com/ktao732084-arch/openclaw_memory_supersystem-v1.0) | 69 | Python | 2026-02-28 | AI Agent Memory System inspired by Neuroscience |  |
+| 41 | [sf197/MemoryShellHunter](https://github.com/sf197/MemoryShellHunter) | 64 | Java | 2022-12-26 | Java Agent memory horse scanner combined with Call Graph modus |  |
+| 42 | [AQ-MedAI/MedMemoryBench](https://github.com/AQ-MedAI/MedMemoryBench) | 62 | Python | 2026-05-13 | The source code and data link of paper "MedMemoryBench: Benchmarking Agent Memory in Personalized Healthcare". | [x.com/AQ_MedAI](https://x.com/AQ_MedAI) |
+| 43 | [thakshak/ReasoningBank](https://github.com/thakshak/ReasoningBank) | 61 | Python | 2026-02-09 | An AI agent memory framework that converts an agent’s own interaction traces—both successes and failures—into reusable, high-level reasoning strategies. These strategies are retrieved to guide future decisions, and the loop repeats so the agent self-evolves. |  |
+| 44 | [rand/mnemosyne](https://github.com/rand/mnemosyne) | 60 | Rust | 2025-11-23 | Mnemosyne is a agentic memory and orchestration system designed to provide Claude Code with persistent semantic memory across sessions. | [rand.github.io/mnemosyne](https://rand.github.io/mnemosyne/) |
+| 45 | [agenticsorg/lean-agentic](https://github.com/agenticsorg/lean-agentic) | 58 | Rust | 2025-10-25 | A hybrid programming language combining Lean4's formal verification with blazing-fast compilation, actor-based agent orchestration, AI-driven optimization, and vector-backed agent memory. | [agentics.org](https://agentics.org) |
+| 46 | [faugustdev/git-context-controller](https://github.com/faugustdev/git-context-controller) | 58 | Shell | 2026-07-02 | Structured context management framework for LLM agents. Implements Git-like operations (COMMIT, BRANCH, MERGE) to manage long-horizon agent memory. | [gcc.faugust.com](https://gcc.faugust.com) |
+| 47 | [raia-live/amfs](https://github.com/raia-live/amfs) | 57 | Python | 2026-06-29 | Git for agent memory. Branches, diffs, PRs, and rollback for what your agents know. | [www.sense-lab.ai](https://www.sense-lab.ai) |
+| 48 | [lktiep/cortex-hub](https://github.com/lktiep/cortex-hub) | 57 | TypeScript | 2026-06-15 | Self-hosted AI Agent Memory + Code Intelligence Platform — one MCP endpoint for persistent memory, AST-aware code search, shared knowledge, and quality enforcement across all your AI coding agents. | [hub.jackle.dev](https://hub.jackle.dev) |
+| 49 | [vectorize-io/agent-memory-benchmark](https://github.com/vectorize-io/agent-memory-benchmark) | 56 | Python | 2026-07-05 | Agent Memory Benchmark |  |
+| 50 | [howardpen9/hermes-gbrain-bridge](https://github.com/howardpen9/hermes-gbrain-bridge) | 55 | TypeScript | 2026-04-13 | Convert Hermes / OpenClaw agent memory (JSONL sessions, MEMORY.md) to markdown for gBrain ingest |  |
+| 51 | [lee-to/ai-workspace](https://github.com/lee-to/ai-workspace) | 55 | Rust | 2026-06-08 | AI Workspace - Give your AI agents memory that spans across projects. |  |
+| 52 | [emson/elfmem](https://github.com/emson/elfmem) | 55 | Python | 2026-07-02 | sELF improving agent memory system |  |
+| 53 | [Farzad-R/Agentic-LongTerm-Memory](https://github.com/Farzad-R/Agentic-LongTerm-Memory) | 54 | Jupyter Notebook | 2025-04-28 | This project contains a step-by-step guide on how to design an advanced agentic memory for your LLM based applications. |  |
+| 54 | [ZenSystemAI/Zengram](https://github.com/ZenSystemAI/Zengram) | 53 | JavaScript | 2026-07-04 | A Multi Agent Memory MCP That Connect Agents Across Systems and Machines | [zensystem.ai](https://zensystem.ai) |
+| 55 | [ThreatRecall/zettelforge](https://github.com/ThreatRecall/zettelforge) | 53 | Python | 2026-07-07 | Agentic memory for CTI in Python — STIX knowledge graphs, threat-actor alias resolution, offline-first RAG, MCP server for Claude Code and LangChain agents | [docs.threatrecall.ai](https://docs.threatrecall.ai/) |
+| 56 | [MiG-NJU/EvoEmbedding](https://github.com/MiG-NJU/EvoEmbedding) | 52 | Python | 2026-07-01 | EvoEmbedding: Evolvable Representations for Long-Context Retrieval and Agentic Memory | [MIG-NJU.github.io/EvoEmbedding](https://MIG-NJU.github.io/EvoEmbedding/) |
+| 57 | [auxten/clickmem](https://github.com/auxten/clickmem) | 51 | Python | 2026-06-18 | Agent memory built on chDB(ClickHouse embedded) |  |
+| 58 | [anaslimem/CortexaDB](https://github.com/anaslimem/CortexaDB) | 50 | Rust | 2026-06-12 | It is a simple, fast, and hard-durable embedded database designed specifically for AI agent memory. It provides a single-file-like experience (no server required) but with native support for vectors, graphs, and temporal search. | [cortexa-db.vercel.app](https://cortexa-db.vercel.app) |
+| 59 | [aliyun/alibabacloud-tablestore-for-agent-memory](https://github.com/aliyun/alibabacloud-tablestore-for-agent-memory) | 49 | Java | 2025-12-19 | Tablestore for Agent Memory |  |
+| 60 | [MinghoKwok/MemEye](https://github.com/MinghoKwok/MemEye) | 47 | Python | 2026-05-17 | MemEye: A Visual-Centric Evaluation Framework for Multimodal Agent Memory | [minghokwok.github.io/MemEye](https://minghokwok.github.io/MemEye/) |
+| 61 | [EverM0re/LiCoMemory](https://github.com/EverM0re/LiCoMemory) | 47 | Python | 2026-01-06 | [ACL26 Findings] LiCoMemory: Lightweight and Cognitive Agentic Memory for Efficient Long-Term Reasoning | [arxiv.org/abs/2511.01448](https://arxiv.org/abs/2511.01448) |
+| 62 | [danny911kr/REALTALK](https://github.com/danny911kr/REALTALK) | 46 | Python | 2025-07-03 | Evaluate your agent memory on real-world dialogues, not LLM-simulated dialogues. |  |
+| 63 | [letta-ai/ai-memory-sdk](https://github.com/letta-ai/ai-memory-sdk) | 45 | Python | 2025-11-04 | An experimental SDK for adding agentic memory and learning in a pluggable way |  |
+| 64 | [CherryHQ/stella](https://github.com/CherryHQ/stella) | 44 | Go | 2026-07-09 | AI partners for every person: multi-user, multi-agent memory, trusted tools, schedules, sandboxed workspaces, and chat. | [stella.cherryai.com](https://stella.cherryai.com) |
+| 65 | [xraysight/hermes-memory-ui](https://github.com/xraysight/hermes-memory-ui) | 43 | Python | 2026-05-28 | Dashboard plugin for inspecting Hermes Agent memory. |  |
+| 66 | [ruvnet/agenticow](https://github.com/ruvnet/agenticow) | 42 | JavaScript | 2026-07-04 | Git for Agent Memory: Copy-On-Write vector branching for embedded multi-agent memory (83x faster, 3000x smaller snapshots) | [ruvnet.github.io/agenticow](https://ruvnet.github.io/agenticow/) |
+| 67 | [lihan0705/hindsight-lite](https://github.com/lihan0705/hindsight-lite) | 42 | Python | 2026-06-16 | Hindsight-lite: Agent Memory That Learns lightweight version. Get inspired by hindsight.vectorize.io | [hindsight.vectorize.io](https://hindsight.vectorize.io/) |
+| 68 | [AIAnytime/Agent-Memory-Playground](https://github.com/AIAnytime/Agent-Memory-Playground) | 37 | Python | 2025-08-07 | Agent Memory Playground: AI Agent Memory Design & Optimization Techniques | [agent-memory-playground.streamlit.app](https://agent-memory-playground.streamlit.app/) |
+| 69 | [nvwalj/ai-memory-reader](https://github.com/nvwalj/ai-memory-reader) | 37 | Swift | 2026-06-21 | The native macOS & iOS app for browsing AI agent memory files — Claude Code, OpenClaw, Codex, Cursor, Gemini | [bestagent.dev](https://bestagent.dev) |
+| 70 | [feelingsonice/MemoryBank](https://github.com/feelingsonice/MemoryBank) | 35 | Rust | 2026-05-23 | Agentic memory using knowledge graphs |  |
+| 71 | [laiso/cman](https://github.com/laiso/cman) | 35 | Python | 2026-06-26 | Agentic Memory for Claude Code |  |
+| 72 | [johnymontana/openclaw-neo4j-agent-memory-plugin](https://github.com/johnymontana/openclaw-neo4j-agent-memory-plugin) | 35 | TypeScript | 2026-03-18 | Graph native short-term, long-term, and reasoning memory to make your claw more powerful and efficient powered by neo4j-agent-memory | [www.npmjs.com/package/@johnymontana/openclaw-neo4j-memory](https://www.npmjs.com/package/@johnymontana/openclaw-neo4j-memory) |
+| 73 | [FeishuLuo/Evolving-LLM-Agent-Memory-Survey](https://github.com/FeishuLuo/Evolving-LLM-Agent-Memory-Survey) | 35 |  | 2026-04-13 | Paper list for "From Storage to Experience: A Survey on the Evolution of LLM Agent Memory Mechanisms". |  |
+| 74 | [DJLougen/hive](https://github.com/DJLougen/hive) | 35 | Python | 2026-07-09 | Unified agent memory and context compression stack for 2026 NVIDIA + edge (Vera CPU, Grace, Jetson Thor, 3090). Glues busyBee-cpu, honey-comb, and rust-brain. Better effective reasoning per token. | [github.com/DJLougen/hive](https://github.com/DJLougen/hive) |
+| 75 | [bigai-nlco/Awesome-AI-Memory](https://github.com/bigai-nlco/Awesome-AI-Memory) | 35 |  | 2026-01-28 | TMLR \| This survey presents a comprehensive and structured synthesis of memory in LLMs and MLLMs, organizing the literature into a cohesive taxonomy comprising implicit, explicit, and agentic memory paradigms. | [openreview.net/forum?id=Sk7pwmLuAY](https://openreview.net/forum?id=Sk7pwmLuAY) |
+| 76 | [wangbo9719/MEXTRA](https://github.com/wangbo9719/MEXTRA) | 34 | Python | 2025-12-02 | Source code for the ACL'2025 paper titled "Unveiling privacy risks in llm agent memory" |  |
+| 77 | [OpenDataBox/awesome-agent-memory](https://github.com/OpenDataBox/awesome-agent-memory) | 33 |  | 2026-07-06 | Paper List of Agent Memory Systems along Four Axes | [arxiv.org/abs/2606.24775](https://arxiv.org/abs/2606.24775) |
+| 78 | [nonatofabio/local_faiss_mcp](https://github.com/nonatofabio/local_faiss_mcp) | 33 | Python | 2026-04-24 | Local FAISS vector store as an MCP server – Agent Memory, drop-in local semantic search for Claude / Copilot / Agents. |  |
+| 79 | [ylongw/embedded-review](https://github.com/ylongw/embedded-review) | 33 | Shell | 2026-03-13 | Embedded/firmware code review skill for AI agents. Memory safety, interrupt correctness, RTOS pitfalls, hardware interfaces, C/C++ traps. STM32/Cortex-M/FreeRTOS focused. |  |
+| 80 | [jasonatgit/echomind_memory.skill](https://github.com/jasonatgit/echomind_memory.skill) | 33 | Python | 2026-07-08 | An AI Multi-Agent memory system that remembers your code style, fixes, and preferences — for Hermes-Agent.OpenClaw,Opencode,Claude Code, etc. |  |
+| 81 | [marikagura/kimi-core](https://github.com/marikagura/kimi-core) | 33 | TypeScript | 2026-07-02 | 个人用的 agent memory OS——记忆系统 + self-drive 自主情感，内置对抗式自审 harness。内在过程需要外在标准。 |  |
+| 82 | [bowen-upenn/PersonaMem-v2](https://github.com/bowen-upenn/PersonaMem-v2) | 32 | Python | 2026-05-18 | PersonaMem-v2: Towards Personalized Intelligence via Learning Implicit User Personas and Agentic Memory | [huggingface.co/datasets/bowen-upenn/PersonaMem-v2](https://huggingface.co/datasets/bowen-upenn/PersonaMem-v2) |
+| 83 | [Mdx2025/BrainX-The-First-Brain-for-OpenClaw](https://github.com/Mdx2025/BrainX-The-First-Brain-for-OpenClaw) | 32 | JavaScript | 2026-06-18 | 🧠 BrainX V6 — The First Brain for OpenClaw. Persistent AI agent memory with PostgreSQL, pgvector, OpenAI embeddings, semantic search, cross-agent learning, and an OpenClaw runtime plugin. |  |
+| 84 | [edihasaj/universal-memory-protocol](https://github.com/edihasaj/universal-memory-protocol) | 31 | TypeScript | 2026-07-07 | Universal Memory Protocol (UMP) - an open standard for agent memory. The third interop layer beside MCP (tools) and A2A (coordination). | [universalmemoryprotocol.io](https://universalmemoryprotocol.io) |
+| 85 | [markhuangai/dense-mem](https://github.com/markhuangai/dense-mem) | 30 | Go | 2026-07-08 | Self-hosted AI agent memory server with MCP, evidence provenance, typed claims, conflict detection, embeddings, recall, PostgreSQL, and Neo4j. | [markhuang.ai/blog/ai-memory-beyond-rag](https://markhuang.ai/blog/ai-memory-beyond-rag) |
+| 86 | [AgentCombo/Mandol](https://github.com/AgentCombo/Mandol) | 30 | Python | 2026-07-09 | Mandol: An Agglomerative Agent Memory System (https://arxiv.org/pdf/2606.29778) | [agentcombo.github.io/Mandol](https://agentcombo.github.io/Mandol/) |
+| 87 | [Concyclics/MemForest](https://github.com/Concyclics/MemForest) | 30 | Python | 2026-05-01 | Official Implementation of "MemForest: An Efficient Agent Memory System with Hierarchical Temporal Indexing" |  |
+| 88 | [akshayaggarwal99/amp](https://github.com/akshayaggarwal99/amp) | 29 | Python | 2026-05-13 | AMP: The Agent Memory Protocol — Open source, MCP-native memory server for AI agents. Give your LLMs a hippocampus. |  |
 
 </details>
 
-## How it works
-
-```mermaid
-flowchart LR
-    K["--keywords / KEYWORDS env"] --> Q
-    QJ[config/queries.json<br/>fallback] --> Q
-    Q[lib/queries.js<br/>query resolution] --> D
-    X[config/exclusions.json] --> D
-    subgraph pipeline [run.js]
-        D[1. Discover<br/>search, dedupe, filter] --> E[2. Enrich<br/>per-repo metadata]
-        E --> S[3. Store<br/>snapshot + export]
-    end
-    S --> DB[(competitors.db)]
-    S --> CSV[competitors.csv]
-```
-
-| Stage | Module | What it does |
-| --- | --- | --- |
-| **Discover** | `lib/discover.js` | Resolves search queries via `lib/queries.js` (generated from `--keywords`, or `config/queries.json` when no keywords are given), runs each against the GitHub Search API, dedupes results by repository full name, drops repos listed in `config/exclusions.json`, and sorts by stars. A configurable delay between queries (longer when unauthenticated) stays within GitHub's search rate limits. |
-| **Enrich** | `lib/enrich.js` | For each candidate, fetches full repository metadata, README, releases, contributors, language breakdown, weekly commit activity, and recent commits. Runs with bounded concurrency; any endpoint that fails yields `null` for that field rather than aborting the run. |
-| **Store** | `lib/store.js` | Writes one snapshot per day into `competitors.db` and regenerates `competitors.csv` ranked by stars. Re-running on the same day overwrites that day's snapshot, so runs are idempotent. Also reports which repos are new since the last snapshot. |
-
-Shared plumbing lives in `lib/github.js`: a thin GitHub REST client that adds auth headers, tracks request counts, retries on transient network errors, and automatically sleeps until `x-ratelimit-reset` when rate limited.
-
-## Quick start
-
-**Prerequisites:** Node.js 18 or newer (the pipeline uses the built-in `fetch`).
-
-```bash
-# 1. Install
-npm install
-
-# 2. Set a GitHub token (strongly recommended - see Rate limits below)
-export GITHUB_TOKEN=ghp_xxx          # bash / zsh
-$env:GITHUB_TOKEN = "ghp_xxx"        # PowerShell
-
-# 3. Run the full pipeline against YOUR market
-node run.js --keywords "vector database, embedding search"
-
-# ...or run without --keywords to use the hand-tuned example queries
-# (AI agent / LLM memory space) in config/queries.json
-node run.js
-```
-
-No special token scopes are needed; a classic personal access token with public repository read access is enough. The pipeline runs unauthenticated too, just much more slowly.
-
-## Usage
-
-### Full pipeline
-
-```bash
-node run.js
-```
-
-Runs discover, enrich, and store in sequence. Produces or updates:
-
-| Output | Description |
-| --- | --- |
-| `competitors.db` | SQLite database with one row per repo per snapshot date (`repos` table) plus full README text (`readmes` table) |
-| `competitors.csv` | Star-ranked summary of the latest run, ready to open in a spreadsheet |
-
-**Flags**
-
-| Flag | Effect |
-| --- | --- |
-| `--keywords "kw1, kw2"` | Generate search queries from a comma-separated keyword list instead of using `config/queries.json`. Each keyword expands into a `topic:` query plus name/description matches. The `KEYWORDS` env var works too (the flag wins if both are set). |
-| `--no-store` | Skip writing the database and CSV; print the enriched records as JSON to stdout instead |
-
-```bash
-# Pipe a snapshot into other tooling without touching the database
-node run.js --no-store > snapshot.json
-```
-
-Progress logs and the end-of-run summary (repos discovered, API requests used, rate limit remaining, new repos since last snapshot) are printed to **stderr**, so stdout stays clean for JSON output and shell pipelines.
+### `topic:ai-memory` - 72 prospects
 
 <details>
-<summary><strong>Example run summary</strong></summary>
+<summary><strong>Show table</strong></summary>
 
-```text
-=== run summary ===
-snapshot date:        2026-07-09
-discovered:           412
-passed filters:       398
-enriched:             395
-new since last snap:  3
-  + some-org/new-memory-layer
-  + another/agent-recall
-  + acme/context-store
-  (review these for exclusions.json false positives)
-API requests used:    2871
-rate limit remaining: 2101
-elapsed:              643.2s
-output:               competitors.db, competitors.csv
-```
+| # | Repository | Stars | Language | Last push | Description | Website |
+| ---: | --- | ---: | --- | --- | --- | --- |
+| 1 | [thedotmack/claude-mem](https://github.com/thedotmack/claude-mem) | 86,523 | JavaScript | 2026-07-08 | Persistent Context Across Sessions for Every Agent – Captures everything your agent does during sessions, compresses it with AI, and injects relevant context back into future sessions. Works with Claude Code, OpenClaw, Codex, Gemini, Hermes, Copilot, OpenCode + More | [claude-mem.ai](https://claude-mem.ai) |
+| 2 | [screenpipe/screenpipe](https://github.com/screenpipe/screenpipe) | 19,718 | Rust | 2026-07-09 | YC (S26) \| AI that knows what you've seen, said, or heard. Records everything you do, say, hear 24/7, local, private, secure. Connect to OpenClaw, Hermes agent and 100+ apps | [screenpipe.com](https://screenpipe.com) |
+| 3 | [julep-ai/julep](https://github.com/julep-ai/julep) | 6,600 | Python | 2026-07-05 | Julep — durable, composable AI agents. Flows that crash and resume, retry safely, and explain every step. | [docs.julep.ai](https://docs.julep.ai) |
+| 4 | [CaviraOSS/OpenMemory](https://github.com/CaviraOSS/OpenMemory) | 4,320 | TypeScript | 2026-06-27 | Local persistent memory store for LLM applications including claude desktop, github copilot, codex, antigravity, etc. | [openmemory.cavira.app](https://openmemory.cavira.app) |
+| 5 | [memgraph/memgraph](https://github.com/memgraph/memgraph) | 4,227 | C++ | 2026-07-09 | High-performance open-source in-memory graph database for GraphRAG, AI memory, agentic AI, and real-time graph analytics. Cypher-compatible, built in C++. | [memgraph.com](https://memgraph.com) |
+| 6 | [memodb-io/memobase](https://github.com/memodb-io/memobase) | 2,774 | Python | 2026-01-11 | User Profile-Based Long-Term Memory for AI Chatbot Applications. | [memobase.io](https://memobase.io) |
+| 7 | [memohai/Memoh](https://github.com/memohai/Memoh) | 1,998 | Go | 2026-07-09 | ✨ The open-source multi-agent platform. Every agent gets its own computer, desktop, network, and long-term memory. You can bring your own key, or host your coding agent like Claude Code, Codex and so on. | [memoh.ai](https://memoh.ai) |
+| 8 | [RedPlanetHQ/core](https://github.com/RedPlanetHQ/core) | 1,884 | TypeScript | 2026-07-09 | Your Personal AI OS | [getcore.me](https://getcore.me) |
+| 9 | [activeloopai/hivemind](https://github.com/activeloopai/hivemind) | 1,463 | TypeScript | 2026-07-09 | Hivemind turns your traces into reusable skills across agents | [deeplake.ai/hivemind](https://deeplake.ai/hivemind) |
+| 10 | [Dataojitori/nocturne_memory](https://github.com/Dataojitori/nocturne_memory) | 1,260 | Python | 2026-06-26 | A lightweight, rollbackable, and visual Long-Term Memory Server for MCP Agents. Say goodbye to Vector RAG and amnesia. Empower your AI with persistent, graph-like structured memory across any model, session, or tool. Drop-in replacement for OpenClaw. | [misaligned.top/memory](https://misaligned.top/memory) |
+| 11 | [ClaudioDrews/memory-os](https://github.com/ClaudioDrews/memory-os) | 1,245 | Python | 2026-06-10 | A 7-layer memory operating system for Hermes Agent — persistent memory with Qdrant, structured facts, fabric recall, auto-curated wiki, and surgical context injection. Runs locally, any LLM provider. |  |
+| 12 | [zhu1090093659/deepseek-pp](https://github.com/zhu1090093659/deepseek-pp) | 1,182 | TypeScript | 2026-07-08 | DeepSeek Web browser extension: AI agent workspace with MCP tools, memory, Skills, automation, web search, and conversation export. | [chromewebstore.google.com/detail/deepseek++/kdmpkkahkhdmdhfkdihkopikgcocbpbf?hl=zh-CN&authuser=0](https://chromewebstore.google.com/detail/deepseek++/kdmpkkahkhdmdhfkdihkopikgcocbpbf?hl=zh-CN&authuser=0) |
+| 13 | [openmemind/memind](https://github.com/openmemind/memind) | 903 | Java | 2026-06-14 | Self-evolving cognitive memory and context engine for AI agents in Java. Empowering 24/7 proactive agents like OpenClaw with understanding and SOTA performance. | [docs.openmemind.com](https://docs.openmemind.com) |
+| 14 | [shaneholloman/mcp-knowledge-graph](https://github.com/shaneholloman/mcp-knowledge-graph) | 872 | JavaScript | 2026-05-29 | MCP server enabling persistent memory for Claude through a local knowledge graph - fork focused on local development |  |
+| 15 | [Anil-matcha/open-claude-tag](https://github.com/Anil-matcha/open-claude-tag) | 868 | Python | 2026-06-25 | Self-hostable channel-native AI teammate for Slack. Open source alternative to Claude Tag. LLM-agnostic. |  |
+| 16 | [alookai/alook](https://github.com/alookai/alook) | 836 | TypeScript | 2026-07-09 | The collaboration layer for your AI workforce. Run a team of AI agents that coordinate over email, share memory, and get better with every task. | [alook.ai](https://alook.ai) |
+| 17 | [topoteretes/awesome-ai-memory](https://github.com/topoteretes/awesome-ai-memory) | 809 | Python | 2026-06-18 | A list of AI memory projects | [github.com/topoteretes/cognee](https://github.com/topoteretes/cognee) |
+| 18 | [supermemoryai/openclaw-supermemory](https://github.com/supermemoryai/openclaw-supermemory) | 787 | TypeScript | 2026-06-21 | OpenClaw Supermemory lets to have long-term memory and recall for your openclaw agent. | [supermemory.ai/docs/integrations/clawdbot](https://supermemory.ai/docs/integrations/clawdbot) |
+| 19 | [verygoodplugins/automem](https://github.com/verygoodplugins/automem) | 775 | Python | 2026-07-07 | AutoMem is a graph-vector memory service that gives AI assistants durable, relational memory: | [automem.ai](https://automem.ai/) |
+| 20 | [alash3al/stash](https://github.com/alash3al/stash) | 738 | Go | 2026-06-14 | Stash — persistent memory layer for AI agents. Episodes, facts, and working context stored in Postgres. MCP server included. Self-hosted, single binary, no cloud required. | [usestash.io](https://usestash.io/) |
+| 21 | [23blocks-OS/ai-maestro](https://github.com/23blocks-OS/ai-maestro) | 724 | TypeScript | 2026-06-13 | AI Agent Orchestrator with Skills System - Give AI Agents superpowers: memory search, code graph queries, agent-to-agent messaging. Manage Claude, Codex or any AI Agent from one dashboard. Move Agents between computers and locations | [ai-maestro.23blocks.com](https://ai-maestro.23blocks.com) |
+| 22 | [samvallad33/vestige](https://github.com/samvallad33/vestige) | 580 | Rust | 2026-07-09 | Vestige gives AI agents sharp memory: a local-first Rust MCP server that reaches backward through time to find the quiet change, decision, or service that caused today’s failure, not the lookalike. | [github.com/samvallad33/vestige](https://github.com/samvallad33/vestige) |
+| 23 | [rahilp/second-brain-cloudflare](https://github.com/rahilp/second-brain-cloudflare) | 518 | TypeScript | 2026-07-08 | One memory layer, every AI tool. Store anything once — recall it in Claude, ChatGPT, Cursor, or any MCP client. Self-hosted on Cloudflare's free tier. | [www.thesecondbrain.dev](https://www.thesecondbrain.dev) |
+| 24 | [AmeNetwork/aser](https://github.com/AmeNetwork/aser) | 469 | Python | 2026-04-21 | Aser is a lightweight, self-assembling AI Agent frame. | [ame.network](https://ame.network/) |
+| 25 | [taylorsatula/mira-OSS](https://github.com/taylorsatula/mira-OSS) | 469 | Python | 2026-07-07 | This is the public release of MIRA OS. Discrete memories decay through momentum loss, tools auto-configure when dropped into tools/ folder, and the system prompt composes from modular trinkets. I would like to think I've made an elegant brain-in-box. You load it and send cURL requests - it talks back, learns, and uses tools. Contributions welcome. | [www.miraos.org](https://www.miraos.org) |
+| 26 | [supermemoryai/smfs](https://github.com/supermemoryai/smfs) | 465 | Rust | 2026-06-12 | A filesystem designed for agents, with SOTA retrieval, automatic memory profiles, sync engine. Drop any file type (pdf, images, videos), and grep through them. | [smfs.ai](https://smfs.ai) |
+| 27 | [MemTensor/MemOS-Cloud-OpenClaw-Plugin](https://github.com/MemTensor/MemOS-Cloud-OpenClaw-Plugin) | 365 | JavaScript | 2026-06-22 | Official MemOS Cloud plugin for OpenClaw. Enables long-term memory for agents by recalling context before execution and saving conversations after each run. |  |
+| 28 | [RyjoxTechnologies/Octopoda-OS](https://github.com/RyjoxTechnologies/Octopoda-OS) | 349 | Python | 2026-06-12 | The open-source memory operating system for AI agents. Persistent memory, semantic search, loop detection, agent messaging, crash recovery, and real-time observability. | [octopodas.com](https://octopodas.com) |
+| 29 | [jayminwest/mulch](https://github.com/jayminwest/mulch) | 320 | TypeScript | 2026-07-03 | Growing Expertise for Coding Agents — structured expertise files that accumulate over time, live in git, work with any agent |  |
+| 30 | [rush-db/rushdb](https://github.com/rush-db/rushdb) | 311 | TypeScript | 2026-07-08 | RushDB is a graph + vector database and memory layer for AI agents. Push any JSON, get typed, searchable, relationship-aware records back — no schema, no migrations. Built on Neo4j. | [rushdb.com](https://rushdb.com) |
+| 31 | [kronotop/kronotop](https://github.com/kronotop/kronotop) | 300 | Java | 2026-07-08 | Distributed, transactional document database backed by FoundationDB. | [kronotop.com](https://kronotop.com) |
+| 32 | [bibinprathap/VeritasGraph](https://github.com/bibinprathap/VeritasGraph) | 298 | Python | 2026-07-08 | VeritasGraph — open-source Knowledge Graph & GraphRAG framework on GitHub. Build multi-hop reasoning, ontology-aware retrieval, and verifiable attribution over your own data. Nodes, edges, RDF, linked-data — runs locally or in the cloud. | [bibinprathap.github.io/VeritasGraph/studio](https://bibinprathap.github.io/VeritasGraph/studio/) |
+| 33 | [oleksiijko/pmb](https://github.com/oleksiijko/pmb) | 295 | Python | 2026-07-06 | Local-first persistent memory for AI coding agents (Claude Code, Cursor, Codex) over MCP. Decisions, lessons and facts live in one SQLite file on your disk. Offline, multilingual. | [pypi.org/project/pmb-ai](https://pypi.org/project/pmb-ai/) |
+| 34 | [supermemoryai/memorybench](https://github.com/supermemoryai/memorybench) | 292 | TypeScript | 2026-07-08 | Unified benchmark for evaluating conversational memory and RAG across multiple datasets | [supermemory.ai/docs/memorybench/overview](https://supermemory.ai/docs/memorybench/overview) |
+| 35 | [ScottRBK/forgetful](https://github.com/ScottRBK/forgetful) | 283 | Python | 2026-07-09 | Opensource Memory for Agents |  |
+| 36 | [abraxas914/VESTI](https://github.com/abraxas914/VESTI) | 278 | TypeScript | 2026-07-09 | Local-first AI conversation memory hub to capture, search, summarize, and export chats across major AI platforms. 本地优先的 AI 对话记忆与知识中台。 |  |
+| 37 | [ix-infrastructure/Ix](https://github.com/ix-infrastructure/Ix) | 274 | TypeScript | 2026-07-06 | Understand any codebase instantly. System intelligence for codebases, built for humans and AI. | [www.ix-infra.com](https://www.ix-infra.com) |
+| 38 | [max-ng/datamoat](https://github.com/max-ng/datamoat) | 250 | TypeScript | 2026-06-28 | Export, back up, search, analyze, and reuse ChatGPT / Claude / Codex / Cursor / DeepSeek / Qwen data + skills + attachments locally | [datamoat.org](https://datamoat.org) |
+| 39 | [EmpiricaAI/empirica](https://github.com/EmpiricaAI/empirica) | 236 | Python | 2026-07-09 | Make AI agents and AI workflows measurably reliable. Epistemic measurement, Noetic RAG, Sentinel gating, and grounded calibration for Claude Code and beyond | [www.getempirica.com](https://www.getempirica.com) |
+| 40 | [nexi-lab/nexus](https://github.com/nexi-lab/nexus) | 225 | Python | 2026-07-08 | Nexus, the shared context plane where every agent and human connect, collaborate, and evolve together. | [nexi-lab.github.io/nexus](https://nexi-lab.github.io/nexus/) |
+| 41 | [ramakay/claude-self-reflect](https://github.com/ramakay/claude-self-reflect) | 217 | Rust | 2026-07-08 | Claude forgets everything. This fixes that. 🔗 www.npmjs.com/package/claude-self-reflect |  |
+| 42 | [nemori-ai/nemori](https://github.com/nemori-ai/nemori) | 207 | Python | 2026-04-16 | A minimalist MVP demonstrating a simple yet profound insight: aligning AI memory with human episodic memory granularity. Shows how this single principle enables simple methods to rival complex memory frameworks for conversational tasks. |  |
+| 43 | [ourmem/omem](https://github.com/ourmem/omem) | 198 | Rust | 2026-05-24 | Shared Memory That Never Forgets — persistent memory for AI agents with Space-based sharing across agents and teams. Plugins for OpenCode, Claude Code, OpenClaw, MCP Server. | [ourmem.ai](https://ourmem.ai) |
+| 44 | [jpicklyk/task-orchestrator](https://github.com/jpicklyk/task-orchestrator) | 196 | Kotlin | 2026-06-25 | Server-enforced workflow discipline for AI agents. An MCP server providing persistent work items, dependency graphs, quality gates, and actor attribution. Schemas define what agents must produce — the server blocks the call if they don't. Works with any MCP-compatible client. | [github.com/jpicklyk/task-orchestrator/wiki](https://github.com/jpicklyk/task-orchestrator/wiki) |
+| 45 | [TonyStef/Grov](https://github.com/TonyStef/Grov) | 191 | TypeScript | 2026-01-29 | Grov automatically captures the context from your private AI sessions and syncs it to a shared team memory. It auto injects relevant memories across developers and future sessions to save tokens and time spent on tasks. | [grov.dev](https://grov.dev/) |
+| 46 | [omega-memory/omega-memory](https://github.com/omega-memory/omega-memory) | 183 | Python | 2026-06-27 | Persistent memory for AI coding agents | [omegamax.co](https://omegamax.co) |
+| 47 | [Intina47/context-sync](https://github.com/Intina47/context-sync) | 182 | TypeScript | 2026-04-11 | Local persistent memory store for LLM applications including continue.dev, cursor, claude desktop, github copilot, codex, antigravity, etc. |  |
+| 48 | [OriginTrail/dkg](https://github.com/OriginTrail/dkg) | 168 | TypeScript | 2026-07-09 | OriginTrail Decentralized Knowledge Graph (DKG) is a decentralized knowledge infrastructure for multi-agent AI memory — enabling agents to publish, verify, and query shared knowledge as cryptographically verifiable graph assets across a peer-to-peer network. | [origintrail.io](https://origintrail.io) |
+| 49 | [ksm26/Multi-AI-Agent-Systems-with-crewAI](https://github.com/ksm26/Multi-AI-Agent-Systems-with-crewAI) | 163 | Jupyter Notebook | 2024-06-11 | Master the art of designing and organizing AI agents. Learn to automate complex, multi-step business processes by creating specialized AI agent teams using the open-source library crewAI. | [www.deeplearning.ai/short-courses/multi-ai-agent-systems-with-crewai](https://www.deeplearning.ai/short-courses/multi-ai-agent-systems-with-crewai/) |
+| 50 | [redleaves/context-keeper](https://github.com/redleaves/context-keeper) | 153 | Go | 2026-01-13 | 🧠 LLM-Driven Intelligent Memory & Context Management System （AI记忆管理与智能上下文感知平台） AI记忆管理平台 \| 智能上下文感知 \| RAG检索增强生成 \| 向量检索引擎 |  |
+| 51 | [Lumen-Labs/brainapi2](https://github.com/Lumen-Labs/brainapi2) | 150 | Python | 2026-06-27 | BrainAPI is a knowledge graph–powered AI memory layer that transforms unstructured data into structured knowledge, enabling intelligent search, recommendations, and contextual memory for AI agents and applications. | [brainapi.lumen-labs.ai/docs/v2](https://brainapi.lumen-labs.ai/docs/v2) |
+| 52 | [riponcm/projectmem](https://github.com/riponcm/projectmem) | 148 | Python | 2026-07-08 | Local-first memory layer for AI coding agents. Captures issues, attempts, decisions, and cross-project library gotchas — your AI starts experienced, not amnesiac. Native MCP server verified across Claude Desktop, Cursor, Antigravity, and Codex. 100% local · no cloud · no telemetry · MIT. | [www.projectmem.dev](https://www.projectmem.dev) |
+| 53 | [HelloRuru/claude-memory-engine](https://github.com/HelloRuru/claude-memory-engine) | 132 | JavaScript | 2026-05-11 | Claude Code 的記憶系統 \| A memory system built with hooks + markdown. Zero dependencies. |  |
+| 54 | [vektori-ai/vektori](https://github.com/vektori-ai/vektori) | 128 | Python | 2026-06-18 | Memory that remembers the story not just the facts. File System Memory and Three layer sentence graph for AI agents -> Facts, Episodes, raw Sentences. One DB. Zero config. | [vektori.cloud](https://vektori.cloud) |
+| 55 | [roampal-ai/roampal](https://github.com/roampal-ai/roampal) | 121 | Python | 2026-05-12 | Memory that learns what works. | [roampal.ai](https://roampal.ai/) |
+| 56 | [offendingcommit/openconcho](https://github.com/offendingcommit/openconcho) | 114 | TypeScript | 2026-07-06 | Fast, privacy-first desktop & web UI for self-hosted Honcho — browse memories, peers, sessions, conclusions, and chat with memory context. |  |
+| 57 | [SukinShetty/Nemp-memory](https://github.com/SukinShetty/Nemp-memory) | 109 | PowerShell | 2026-06-24 | Nemp - The memory plugin for Claude Code that remembers everything. | [www.nemp.dev](https://www.nemp.dev/) |
+| 58 | [carsteneu/ai-memory-comparison](https://github.com/carsteneu/ai-memory-comparison) | 108 | HTML | 2026-07-09 | Source-backed feature comparison of memory systems for AI coding agents. No affiliation, no marketing — just facts from public docs. | [carsteneu.github.io/ai-memory-comparison](https://carsteneu.github.io/ai-memory-comparison/) |
+| 59 | [EliasOulkadi/shokunin](https://github.com/EliasOulkadi/shokunin) | 104 | HTML | 2026-06-30 | 職人 Shokunin 62 AI agent skills for OpenCode, Claude Code, Cursor, Windsurf. ChromaDB memory, MCP servers, declarative self-updates. Multi-model, open source, zero cost. | [eliasoulkadi.github.io/shokunin](https://eliasoulkadi.github.io/shokunin/) |
+| 60 | [joshuaswarren/remnic](https://github.com/joshuaswarren/remnic) | 103 | TypeScript | 2026-07-08 | Open-source memory and context for user-aware agents: scoped memory, provenance, retrieval quality, correction, boundaries, evals, and MCP/HTTP access. |  |
+| 61 | [shihanwan/memonto](https://github.com/shihanwan/memonto) | 99 | Python | 2024-10-16 | Augment AI agents with long-term memory through knowledge graph 🧠 |  |
+| 62 | [elvismdev/mem0-mcp-selfhosted](https://github.com/elvismdev/mem0-mcp-selfhosted) | 98 | Python | 2026-03-13 | Self-hosted mem0 MCP server for Claude Code. Run a complete memory server against self-hosted Qdrant + Neo4j + Ollama while using Claude as the main LLM. |  |
+| 63 | [RLabs-Inc/memory](https://github.com/RLabs-Inc/memory) | 91 | Python | 2025-12-23 | Memory server for llms that can be easily integrated to any client. |  |
+| 64 | [roboticforce/sugar](https://github.com/roboticforce/sugar) | 90 | Python | 2026-07-03 | Persistent memory for AI coding agents. Local-first, cross-session context, global knowledge, and optional autonomous task execution. | [roboticforce.io/sugar](https://roboticforce.io/sugar) |
+| 65 | [kunwar-shah/claudex](https://github.com/kunwar-shah/claudex) | 90 | JavaScript | 2026-06-20 | MCP server with persistent memory + FTS5 search for Claude Code conversation history. Index your ~/.claude/projects/, expose 10 MCP tools, browse via web UI. MIT-licensed. | [kunwar-shah.github.io/claudex](https://kunwar-shah.github.io/claudex/) |
+| 66 | [vstorm-co/memv](https://github.com/vstorm-co/memv) | 85 | Python | 2026-05-18 | Structured, temporal memory for AI agents. | [vstorm-co.github.io/memv](https://vstorm-co.github.io/memv/) |
+| 67 | [nikita-rulenko/Helixir](https://github.com/nikita-rulenko/Helixir) | 85 | Rust | 2026-07-09 | LLM reasoning outer weights memory layer to sync any agents you have |  |
+| 68 | [ilang-ai/autocode](https://github.com/ilang-ai/autocode) | 84 | Shell | 2026-07-03 | You say it. AutoCode ships it. 48 skills. Code to deployment in one session. I-Lang v5.0 judgment + secret-safe deploys. Free forever. | [ilang.ai](https://ilang.ai) |
+| 69 | [xuanlinAI/overmind](https://github.com/xuanlinAI/overmind) | 83 | JavaScript | 2026-06-05 | 玄霖超脑 · 无量网络 v4 重构版— 66 模块6通道 AI 认知神经系统 · 装一次，你所有的 AI 工具从此共享一个永远不失忆的大脑。跨会话记忆 · 多 Agent 互通 · 自动代码审查 · 零配置 |  |
+| 70 | [sanonone/kektordb](https://github.com/sanonone/kektordb) | 81 | Go | 2026-06-27 | AI memory system combining vector search with temporal knowledge graph. Built-in cognitive engine for agents. Supports memory decay, contradiction detection, and MCP integration. |  |
+| 71 | [cyberlife-coder/VelesDB](https://github.com/cyberlife-coder/VelesDB) | 75 | Rust | 2026-07-08 | The local-first memory engine for AI agents. One offline Rust binary fuses vector + graph + columnar under SQL — remember / recall / why over the Model Context Protocol. why() reconnects a decision to its context across sessions, where pure vector recall (Mem0/Zep) goes blind. Runs on server, laptop, browser, edge. Zero cloud. | [velesdb.com](https://velesdb.com) |
+| 72 | [TechNickAI/openclaw-config](https://github.com/TechNickAI/openclaw-config) | 73 | Python | 2026-06-16 | Give your AI assistant memory, skills, and autonomy. Persistent memory, integration skills, and autonomous workflows |  |
 
 </details>
 
-### Fast mode (discover only)
+### `"ai memory" in:description` - 88 prospects
 
-```bash
-node run-fast.js --keywords "vector database"   # keywords optional, as with run.js
-```
+<details>
+<summary><strong>Show table</strong></summary>
 
-Skips enrichment entirely and writes `competitors.csv` straight from the search results, which already carry stars, description, homepage, topics, and last-push date. Use fast mode when:
+| # | Repository | Stars | Language | Last push | Description | Website |
+| ---: | --- | ---: | --- | --- | --- | --- |
+| 1 | [MemPalace/mempalace](https://github.com/MemPalace/mempalace) | 57,159 | Python | 2026-07-08 | The best-benchmarked open-source AI memory system. And it's free. | [mempalaceofficial.com](http://mempalaceofficial.com/) |
+| 2 | [mnemosyne-oss/mnemosyne](https://github.com/mnemosyne-oss/mnemosyne) | 1,457 | Python | 2026-07-08 | The Zero-Dependency, Sub-Millisecond AI Memory System for Hermes Agents and Everyone Else! | [mnemosyne.site](https://mnemosyne.site) |
+| 3 | [oceanbase/powermem](https://github.com/oceanbase/powermem) | 743 | Python | 2026-07-08 | PowerMem: AI Memory Plugin— Accurate, Agile, Affordable. Make AI Agent smarter. | [www.powermem.ai](https://www.powermem.ai) |
+| 4 | [caspianmoon/memoripy](https://github.com/caspianmoon/memoripy) | 691 | Python | 2026-03-18 | An AI memory layer with short- and long-term storage, semantic clustering, and optional memory decay for context-aware applications. |  |
+| 5 | [JSingletonAI/DejaVu](https://github.com/JSingletonAI/DejaVu) | 603 | Python | 2026-07-07 | DejaVu — private, portable AI memory powered by Venice and stored locally | [deja-vu.dev](https://deja-vu.dev) |
+| 6 | [jaylfc/taOS](https://github.com/jaylfc/taOS) | 413 | Python | 2026-07-09 | Self-hosted AI agent OS. Your memory, chat, agents, and files stay on hardware you own, offline by default, cloud by choice. Offline AI memory (taOSmd), self-hosted multi-framework group chat, a full web desktop + app store, and auto-clustering across the consumer hardware you already have (Orange/Raspberry Pi, Mac mini, gaming PC). | [taOS.my](https://taOS.my) |
+| 7 | [macro-inc/macro](https://github.com/macro-inc/macro) | 402 | Rust | 2026-07-09 | Macro is a unified interface for email, messages, tasks, calls, agents, pull requests, docs, crm — linked together with shared AI memory. | [macro.com](https://macro.com) |
+| 8 | [humanloop/memorai](https://github.com/humanloop/memorai) | 301 | Python | 2022-12-28 | 🧠 AI memory assistant – remember everything you read | [memorai.humanloop.ml](https://memorai.humanloop.ml) |
+| 9 | [tinyhumansai/tinycortex](https://github.com/tinyhumansai/tinycortex) | 236 | Rust | 2026-07-06 | The Fastest AI Memory Model - Your Second Brain | [tinyhumans.gitbook.io/neocortex](https://tinyhumans.gitbook.io/neocortex/) |
+| 10 | [zaydmulani09/mnemo](https://github.com/zaydmulani09/mnemo) | 228 | Rust | 2026-06-04 | Local-first AI memory layer for any LLM. Persistent knowledge graph, entity extraction, semantic retrieval. Works with Ollama, OpenAI, Anthropic, or any OpenAI-compatible backend. |  |
+| 11 | [XiaomingX/awesome-ai-memory](https://github.com/XiaomingX/awesome-ai-memory) | 156 |  | 2026-02-03 | A list of AI memory projects（ AI长期记忆的开源和商业项目列表） | [x.com/seclink](https://x.com/seclink) |
+| 12 | [liliang-cn/cortexdb](https://github.com/liliang-cn/cortexdb) | 147 | Go | 2026-07-09 | A pure-Go, single-file AI memory and knowledge graph library and plugin. | [cortex.superleo.app](https://cortex.superleo.app/) |
+| 13 | [Shubhamsaboo/openclaw-vertexai-memorybank](https://github.com/Shubhamsaboo/openclaw-vertexai-memorybank) | 144 | TypeScript | 2026-03-20 | Vertex AI Memory Bank Plugin for OpenClaw |  |
+| 14 | [jrcruciani/obsidian-memory-for-ai](https://github.com/jrcruciani/obsidian-memory-for-ai) | 141 | Python | 2026-05-27 | A guide to building persistent AI memory using Obsidian, so your AI assistant knows you without re-explaining yourself every session | [agentmemory.site](https://agentmemory.site) |
+| 15 | [BAI-LAB/Survey-on-AI-Memory](https://github.com/BAI-LAB/Survey-on-AI-Memory) | 102 |  | 2026-03-30 | Official repository for "Survey on AI Memory: Theories, Taxonomies, Evaluations, and Emerging Trends". |  |
+| 16 | [RYJOX-Technologies/Synrix-Memory-Engine](https://github.com/RYJOX-Technologies/Synrix-Memory-Engine) | 90 | Python | 2026-03-23 | Local-first AI memory with O(k) prefix queries. Your data, your machine. |  |
+| 17 | [jagdeepsinghdev/nova-memory](https://github.com/jagdeepsinghdev/nova-memory) | 80 | JavaScript | 2025-12-28 | AI Memory |  |
+| 18 | [ukkit/memcord](https://github.com/ukkit/memcord) | 69 | Python | 2026-06-22 | 🧠 Self-hosted, privacy-first MCP server for long-term AI memory — save, search & summarize Claude/ChatGPT chat history locally. No cloud, no database. | [github.com/ukkit/memcord/releases](https://github.com/ukkit/memcord/releases) |
+| 19 | [SMJAI/open-memory-protocol](https://github.com/SMJAI/open-memory-protocol) | 68 | TypeScript | 2026-07-02 | An open standard for portable, interoperable AI memory across tools, sessions, and devices. |  |
+| 20 | [hoornet/home-mind](https://github.com/hoornet/home-mind) | 66 | TypeScript | 2026-07-04 | OSS AI memory layer for Home Assistant (AGPL). The conversation server inside the Nives addon was forked from this project — they're independent now. |  |
+| 21 | [jaylfc/taosmd](https://github.com/jaylfc/taosmd) | 66 | Python | 2026-07-08 | Local-first AI memory — runs offline on any machine with 8 GB+ RAM (SBC, mini PC, laptop, workstation). Zero-loss verbatim archive, knowledge graph, hybrid retrieval. Framework-agnostic, no cloud. |  |
+| 22 | [mordechaipotash/brain-mcp](https://github.com/mordechaipotash/brain-mcp) | 62 | Python | 2026-05-28 | Local-first AI memory MCP server — query your ChatGPT, Claude Code, Cursor & Codex history from any LLM. DuckDB+parquet. | [brainmcp.dev](https://brainmcp.dev) |
+| 23 | [Winddfall/CoBridge](https://github.com/Winddfall/CoBridge) | 57 | TypeScript | 2026-07-09 | multi-AI Context Sync Tool, Sync AI Memory with One Click. / 多 AI 上下文同步工具，一键同步 AI 记忆 | [open-vsx.org/extension/windfall/co-bridge](https://open-vsx.org/extension/windfall/co-bridge) |
+| 24 | [MihaiBuilds/memory-vault](https://github.com/MihaiBuilds/memory-vault) | 56 | Python | 2026-07-06 | A local-first AI memory system with hybrid search, MCP integration, and a knowledge graph. | [mihaibuilds.com](https://mihaibuilds.com) |
+| 25 | [Samin12/obsidian-openclaw-memory](https://github.com/Samin12/obsidian-openclaw-memory) | 55 |  | 2026-04-26 | OpenClaw skill: Use Obsidian + OpenClaw as an AI memory system with knowledge graph |  |
+| 26 | [1ch1n/mychatarchive](https://github.com/1ch1n/mychatarchive) | 54 | Python | 2026-07-07 | Local-first AI memory archive. Import ChatGPT, Claude, and Grok exports, generate semantic embeddings, and search via MCP server. Zero cloud, zero cost. | [mychatarchive.com](https://mychatarchive.com) |
+| 27 | [FastBuilderAI/memory](https://github.com/FastBuilderAI/memory) | 53 | HTML | 2026-06-08 | FastMemory is a topological representation of text data using concepts as the primary input. It helps in improving the RAG(by replacing embedding and vectors entirely), AI memory and LLM queries by upto 100% as in the huggingface benchmarks(22+ SOTA) | [fastbuilder.ai/fastmemory](https://fastbuilder.ai/fastmemory) |
+| 28 | [DenAB-NVS/submarine](https://github.com/DenAB-NVS/submarine) | 50 | JavaScript | 2026-05-07 | Sovereign, depth-adaptive AI memory. Open source. Local-first. Model-agnostic. | [causalmemory.org](https://causalmemory.org) |
+| 29 | [remete618/widemem-ai](https://github.com/remete618/widemem-ai) | 47 | Python | 2026-07-06 | Next-gen AI memory layer with importance scoring, temporal decay, hierarchical memory, and YMYL prioritization | [widemem.ai](https://widemem.ai) |
+| 30 | [recallium-ai/recallium](https://github.com/recallium-ai/recallium) | 47 | Batchfile | 2026-05-15 | Recallium is a local, self-hosted universal AI memory system providing a persistent knowledge layer for developer tools (Copilot, Cursor, Claude Desktop). It eliminates "AI amnesia" by automatically capturing, clustering, and surfacing decisions and patterns across all projects. It uses the MCP for universal compatibility and ensures privacy | [recallium.ai](https://recallium.ai) |
+| 31 | [vibeinging/MemMe](https://github.com/vibeinging/MemMe) | 46 | Rust | 2026-07-01 | Edge-first AI memory engine. Rust core, DuckDB single-file, sub-10ms search, 6 language bindings. | [vibeinging.github.io/MemMe](https://vibeinging.github.io/MemMe/) |
+| 32 | [Gelembjuk/cleverchatty](https://github.com/Gelembjuk/cleverchatty) | 42 | Go | 2026-02-09 | Common AI Agent written with Go. Supports MCP, RAG, A2A, AI Memory |  |
+| 33 | [momomemory/momo](https://github.com/momomemory/momo) | 38 | Rust | 2026-04-10 | Momo is a self-hostable AI memory system written in Rust — inspired by SuperMemory |  |
+| 34 | [aristoapp/openclaw-membase](https://github.com/aristoapp/openclaw-membase) | 37 | TypeScript | 2026-06-26 | OpenClaw plugin for persistent AI memory | [docs.membase.so/connectors/openclaw](https://docs.membase.so/connectors/openclaw) |
+| 35 | [jxoesneon/mempalace-rs](https://github.com/jxoesneon/mempalace-rs) | 34 | HTML | 2026-06-19 | A high-performance, local, offline-first AI memory system built in Rust | [crates.io/crates/mempalace-rs](https://crates.io/crates/mempalace-rs) |
+| 36 | [EngramMemory/engram-memory](https://github.com/EngramMemory/engram-memory) | 34 | Python | 2026-06-01 | The highest-scoring AI memory system ever benchmarked that isn't reliant on LLM reranking. And it's free & burns less tokens. | [engrammemory.ai](https://engrammemory.ai) |
+| 37 | [onfabric/context-use](https://github.com/onfabric/context-use) | 32 | Python | 2026-04-20 | Portable AI memory from your conversations and data exports. | [context-use.com](https://context-use.com) |
+| 38 | [Jackie2049/ContextDrop](https://github.com/Jackie2049/ContextDrop) | 31 | TypeScript | 2026-04-23 | 专注于AI助手记忆管理的浏览器插件，跨会话、跨平台无缝流转你的AI记忆 🧠 A browser extension for AI assistant memory management, enabling seamless cross-session and cross-platform synchronization of your AI memories. |  |
+| 39 | [RLabs-Inc/memory-ts](https://github.com/RLabs-Inc/memory-ts) | 30 | TypeScript | 2026-03-03 | AI Memory System - Consciousness continuity through intelligent memory curation and retrieval |  |
+| 40 | [keeprlabs/keepr](https://github.com/keeprlabs/keepr) | 30 | TypeScript | 2026-05-04 | AI memory layer for engineering teams - local first desktop app | [keeprlabs.github.io/keepr](https://keeprlabs.github.io/keepr/) |
+| 41 | [emanuilo/memclaw](https://github.com/emanuilo/memclaw) | 30 | Python | 2026-06-22 | Personal AI memory assistant — store and search thoughts, images, and links | [memclaw.app](https://memclaw.app) |
+| 42 | [YuNaga224/obsidian-memory-mcp](https://github.com/YuNaga224/obsidian-memory-mcp) | 29 | TypeScript | 2025-08-02 | 🧠 MCP server for storing AI memories as Markdown files with Obsidian graph visualization support |  |
+| 43 | [springmeng/Drone-Rental-System](https://github.com/springmeng/Drone-Rental-System) | 29 | Vue | 2026-05-26 | 该项目是无人机的租赁系统，也可以是其他的设备、器材租赁，技术栈：Java 21 + Spring Boot 3.5.13 + Vue 3 + Spring AI + MCP + AI Memory，其他的技术栈Dify/Coze、 Python LangChain/LangGraph Agent 。项目是开源的，免费学习的，star支持一下，不断更新中。 | [www.javaclimb.com](https://www.javaclimb.com/) |
+| 44 | [Synaptic-MCP/Synaptic](https://github.com/Synaptic-MCP/Synaptic) | 28 | TypeScript | 2025-05-26 | Decentralized AI Memory Connection Protocol - Making AI Truly Yours. A revolutionary protocol that gives you complete control over your AI memories and interactions across all platforms. | [www.synapticmcp.xyz](https://www.synapticmcp.xyz/) |
+| 45 | [Arman-Kudaibergenov/rlm-workflow](https://github.com/Arman-Kudaibergenov/rlm-workflow) | 26 | Python | 2026-05-25 | Persistent AI memory workflow for Claude Code using RLM-Toolkit |  |
+| 46 | [mycelia-tech/mycelia](https://github.com/mycelia-tech/mycelia) | 25 | TypeScript | 2026-07-08 | Privacy-First AI Memory | [mycelia.tech](https://mycelia.tech) |
+| 47 | [Keyoku-ai/keyoku-engine](https://github.com/Keyoku-ai/keyoku-engine) | 23 | Go | 2026-06-18 | AI memory engine — semantic search, knowledge graph, 12-signal heartbeat, memory decay | [keyoku.ai](https://keyoku.ai) |
+| 48 | [EvolvingLMMs-Lab/engram](https://github.com/EvolvingLMMs-Lab/engram) | 23 | TypeScript | 2026-06-12 | Privacy-first AI memory layer - Signal for AI Memory. E2EE, local-first, works with Claude, Cursor, and any MCP-compatible AI. |  |
+| 49 | [aneequrrehman/recall](https://github.com/aneequrrehman/recall) | 23 | TypeScript | 2026-03-23 | AI memory layer that lives in your stack | [recall-docs-sand.vercel.app](https://recall-docs-sand.vercel.app) |
+| 50 | [sprklai/zenii](https://github.com/sprklai/zenii) | 23 | JavaScript | 2026-07-06 | Your machine's AI brain. One 20MB binary gives every tool, script, and cron job shared AI memory + 136 API endpoints. Desktop app, CLI, Telegram — all connected. Rust-powered. | [zenii.sprklai.com](https://zenii.sprklai.com) |
+| 51 | [basicmachines-co/basic-memory-skills](https://github.com/basicmachines-co/basic-memory-skills) | 22 |  | 2026-04-20 | Skills for AI memory management — reflection, defragmentation, and more |  |
+| 52 | [marlandoj/zouroboros](https://github.com/marlandoj/zouroboros) | 22 | TypeScript | 2026-07-08 | A self-enhancing AI memory and orchestration platform built natively on Zo Computer |  |
+| 53 | [Cogeto/cogeto](https://github.com/Cogeto/cogeto) | 22 | TypeScript | 2026-07-08 | Private, EU-hosted AI memory that you can inspect, correct, and prove deleted - with human-approved agents on top. | [cogeto.eu](https://cogeto.eu) |
+| 54 | [michaelwhitford/mementum](https://github.com/michaelwhitford/mementum) | 20 | Clojure | 2026-03-22 | Git as AI Memory. Requires: bash tool with git installed |  |
+| 55 | [rodspeed/epistemic-memory](https://github.com/rodspeed/epistemic-memory) | 20 | Shell | 2026-04-08 | What should a machine remember about a person? A protocol for AI memory that models who you are — with confidence, decay, and contradiction tracking. |  |
+| 56 | [TheAmSpeed/openclaw-ic-sovereign-persistent-memory](https://github.com/TheAmSpeed/openclaw-ic-sovereign-persistent-memory) | 19 | TypeScript | 2026-02-23 | Sovereign, persistent AI memory on the Internet Computer. OpenClaw community plugin. |  |
+| 57 | [Nodewarrior/spine](https://github.com/Nodewarrior/spine) | 19 | Shell | 2026-07-05 | Spine Architecture — A self-developing knowledge management system for Claude Code. Bridges AI memory to an Obsidian vault with feature-organized spine notes, auto-capture skills, and color-coded graph visualization. |  |
+| 58 | [RoboFinSystems/robosystems](https://github.com/RoboFinSystems/robosystems) | 18 | Python | 2026-07-09 | RoboSystems is a financial intelligence platform that unifies structured data, document search, and AI memory to transform complex financial data into actionable intelligence. Fork-ready with full GitHub Actions CI/CD for deploying CloudFormation infrastructure to your AWS account. | [robosystems.ai](https://robosystems.ai) |
+| 59 | [neverinfamous/memory-journal-mcp](https://github.com/neverinfamous/memory-journal-mcp) | 18 | TypeScript | 2026-07-05 | Secure AI Memory with Dynamic Project Detection, Automatic Session Briefing, Personal+Team Session Summary Prompts, Triple Search, Knowledge Graphs, GitHub Integration (Issues, PRs, Actions, Kanban, Milestones), Team Collaboration, Hush, Adaptive Analytics, Markdown I/O, Audit+Token Logging, OAuth 2.1 & HTTP/SSE/stdio. 70+ Tools in 1 Code Mode. | [search.adamic.tech](https://search.adamic.tech/) |
+| 60 | [rergards/mempalace-code](https://github.com/rergards/mempalace-code) | 18 | Python | 2026-06-18 | Offline-first AI memory for coding — mine codebases into a local LanceDB vector store with 18 MCP tools, temporal knowledge graph, and export/import. No API keys, no cloud, no server. |  |
+| 61 | [memoriqme/memoriq](https://github.com/memoriqme/memoriq) | 17 | Vue | 2026-06-14 | Encrypted AI memory vault for saving and searching AI conversations | [memoriq.me](https://memoriq.me) |
+| 62 | [evepupil/CloudMind](https://github.com/evepupil/CloudMind) | 17 | TypeScript | 2026-06-27 | CloudMind is an open source, Cloudflare-native, serverless-first private AI memory layer for the AI era. |  |
+| 63 | [sambaleuk/Vibetape-MCP-Server](https://github.com/sambaleuk/Vibetape-MCP-Server) | 17 | TypeScript | 2026-01-09 | 🧠 Hybrid Active Memory MCP Server for AI-Driven Development \| Capture, analyze & leverage build moments through semantic AI memory \| Transform your dev workflow with intelligent context preservation | [vibetapemcp.dev](http://vibetapemcp.dev/) |
+| 64 | [reneyuxi0402/write-him-back](https://github.com/reneyuxi0402/write-him-back) | 17 |  | 2026-06-24 | 让下一个窗口的他，还能是他。A prompt / skill for AI memory that brings him back. |  |
+| 65 | [Soflutionltd/MemoryPilot](https://github.com/Soflutionltd/MemoryPilot) | 17 | Rust | 2026-05-17 | The most advanced AI memory server in the world. Hybrid search, Temporal Knowledge Graph, transformer embeddings, AAAK compression (3x token savings) — pure Rust, single binary, zero dependencies. | [soflution.com](https://soflution.com) |
+| 66 | [Dakera-AI/dakera-deploy](https://github.com/Dakera-AI/dakera-deploy) | 16 | JavaScript | 2026-06-26 | Self-hosted Dakera AI memory server — Docker Compose, Kubernetes, Helm, HA cluster setup, and monitoring. | [dakera.ai/docs](https://dakera.ai/docs) |
+| 67 | [JSONbored/mem0-aio](https://github.com/JSONbored/mem0-aio) | 16 | Python | 2026-07-08 | Unraid CA template and Docker build for Mem0 (OpenMemory). This mega-container utilizes s6-overlay to seamlessly bundle the pre-compiled Qdrant Vector Database, the Python FastAPI/MCP server, and the Next.js Dashboard UI into a single, click-and-play local AI memory layer. Built for homelabs, privacy, and true agentic AI memory retention. | [aethereal.dev](https://aethereal.dev) |
+| 68 | [mongodb-partners/ai-memory](https://github.com/mongodb-partners/ai-memory) | 16 | Python | 2026-06-17 | An AI Memory Service that enhances AI agent with long-term memory capabilities, using MongoDB Atlas and AWS Bedrock to provide hierarchical memory structures with importance scoring, semantic search, and conversation summarization for personalized, contextually-aware interactions. |  |
+| 69 | [ryaker/mcp-mem0-general](https://github.com/ryaker/mcp-mem0-general) | 16 | Python | 2025-08-12 | OpenAI just added memory across your chats across your openAI account. But wouldn't it be awesome to have general AI memory across all your interactions with any and all AI tools, IDEs, chatbots.... Now if it supports MCP you can with https://mem0.ai/ Give Claude desktop memory. Give cursor or windsurf memory across sessions or different projects. |  |
+| 70 | [topoteretes/cognee-rs](https://github.com/topoteretes/cognee-rs) | 15 | Rust | 2026-07-09 | Cognee Rust - fast and performant AI memory engine | [www.cognee.ai](https://www.cognee.ai) |
+| 71 | [ICME-Lab/kinic-cli](https://github.com/ICME-Lab/kinic-cli) | 15 | Rust | 2026-05-20 | AI memory hosted on the Internet Computer blockchain. | [www.kinic.io](https://www.kinic.io/) |
+| 72 | [prof-faustus/anchorchain](https://github.com/prof-faustus/anchorchain) | 15 | TypeScript | 2026-06-02 | AnchorChain: immutable referencing of AI memory states through Bitcoin (BSV) blockchain-indexed volumetric data linking, with file linking and selective disclosure, an AI credit system, and a hardened metering authority. |  |
+| 73 | [ATERNA-AI/cortex](https://github.com/ATERNA-AI/cortex) | 15 | TypeScript | 2026-04-20 | The World's #1 Memory Architecture for AI • Memory that thinks, learns, and dreams • Synthetic cognition infrastructure for Agentic Ai. | [aterna.ai](https://aterna.ai) |
+| 74 | [elementalcollision/GraphMemory-IDE](https://github.com/elementalcollision/GraphMemory-IDE) | 15 | Python | 2026-06-21 | AI-assisted development MCP providing long-term, on-device "AI memory" for IDEs. Powered by Kuzu GraphDB and exposed via MCP server |  |
+| 75 | [Junebugg1214/Cortex-AI](https://github.com/Junebugg1214/Cortex-AI) | 14 | Python | 2026-05-16 | Your AI memory. Versioned. Portable. Yours. | [cortex-ore.com](http://cortex-ore.com/) |
+| 76 | [zodttd/memextend](https://github.com/zodttd/memextend) | 14 | TypeScript | 2026-02-01 | Free, local AI memory extension for coding assistants |  |
+| 77 | [lopadova/claude-mem-sync](https://github.com/lopadova/claude-mem-sync) | 14 | TypeScript | 2026-06-20 | Team memory sharing for claude-mem — sync AI memories across developers, with Claude Code plugin, github action and knowledge distillation | [doc.claude-mem-sync.padosoft.com](https://doc.claude-mem-sync.padosoft.com) |
+| 78 | [PCIRCLE-AI/memesh-llm-memory](https://github.com/PCIRCLE-AI/memesh-llm-memory) | 14 | TypeScript | 2026-05-13 | The lightest universal AI memory layer. One SQLite file, any LLM, zero cloud. MCP + HTTP + CLI. Smart Recall, Knowledge Evolution, Auto-Capture, Interactive Dashboard. | [pcircle.ai/memesh-llm-memory](https://pcircle.ai/memesh-llm-memory) |
+| 79 | [DrJonaC/Pensieve](https://github.com/DrJonaC/Pensieve) | 14 | TypeScript | 2026-07-06 | Observe how memory shapes an answer. Pensieve is an interactive system for visualizing, interpreting, and managing how Large Language Models (LLMs) “remember” a user. It bridges the gap between model-level mechanisms and user-level understanding, making AI memory observable, explainable, and partially controllable. |  |
+| 80 | [cpretzinger/memory-forge](https://github.com/cpretzinger/memory-forge) | 13 | TypeScript | 2025-08-19 | Universal AI Context & Memory System - MCP Server for persistent AI memory |  |
+| 81 | [agentreplay/agentreplay](https://github.com/agentreplay/agentreplay) | 13 | Rust | 2026-03-21 | Local-First Desktop Evals, Observability & AI Memory for Your Agents and Coding Tools |  |
+| 82 | [Irina1920/WMB-100K](https://github.com/Irina1920/WMB-100K) | 13 | Rust | 2026-07-06 | WMB-100K — The first 100,000-turn benchmark for AI memory systems |  |
+| 83 | [Siim/superlocalmemory](https://github.com/Siim/superlocalmemory) | 13 | TypeScript | 2026-03-14 | Local AI memory - no cloud, no API keys. 100% local alternative to Supermemory. |  |
+| 84 | [aristoapp/hermes-membase](https://github.com/aristoapp/hermes-membase) | 12 | Python | 2026-07-03 | Hermes Agent plugin for persistent AI memory | [docs.membase.so/connectors/hermes](https://docs.membase.so/connectors/hermes) |
+| 85 | [theforkproject-dev/zo-local-memory](https://github.com/theforkproject-dev/zo-local-memory) | 12 | Python | 2026-01-16 | Local semantic memory system for Zo Computer. Persistent AI memory with full data sovereignty using Ollama + Turso. Zero external dependencies. | [tools-hub-fork.zocomputer.io](https://tools-hub-fork.zocomputer.io) |
+| 86 | [quangdang46/mempalace_rust](https://github.com/quangdang46/mempalace_rust) | 12 | Rust | 2026-07-06 | The highest-scoring AI memory system ever benchmarked. Now in Rust with rich features — single-binary port from @milla-jovovich/mempalace. Free and local. |  |
+| 87 | [karrolcia/hippocampus](https://github.com/karrolcia/hippocampus) | 12 | TypeScript | 2026-07-06 | Open-source MCP memory server. Universal AI memory across all platforms. |  |
+| 88 | [dynamder/Soulmem](https://github.com/dynamder/Soulmem) | 12 | Rust | 2026-07-07 | a human-like, self-evolving, self-cleaned AI memory system for LLM |  |
 
-- You just want an up-to-date ranked list in a minute or two
-- The candidate volume is large enough to trip GitHub's secondary rate limits during enrichment
+</details>
 
-## Configuration
+### `topic:memory-layer` - 43 prospects
 
-There are two ways to define your prospecting space, and no code changes are needed to retarget the pipeline to a different market:
+<details>
+<summary><strong>Show table</strong></summary>
 
-1. **Keywords (zero setup):** `node run.js --keywords "your, market, terms"` (or set the `KEYWORDS` env var). Each keyword is expanded into overlapping queries - a `topic:` search plus name and description matches - and results are deduplicated across them.
-2. **Hand-tuned queries (max precision):** edit `config/queries.json`. Used whenever no keywords are given.
+| # | Repository | Stars | Language | Last push | Description | Website |
+| ---: | --- | ---: | --- | --- | --- | --- |
+| 1 | [NateBJones-Projects/OB1](https://github.com/NateBJones-Projects/OB1) | 4,126 | TypeScript | 2026-07-08 | Open Brain — The infrastructure layer for your thinking. One database, one AI gateway, one chat channel — any AI plugs in. No middleware, no SaaS. |  |
+| 2 | [knowns-dev/knowns](https://github.com/knowns-dev/knowns) | 214 | Go | 2026-06-29 | The memory layer for AI-native development — giving AI persistent understanding of your software projects. | [knowns.sh](http://knowns.sh) |
+| 3 | [maximem-ai/maximem_synap_sdk](https://github.com/maximem-ai/maximem_synap_sdk) | 45 | Python | 2026-07-06 | Maximem Synap is the memory layer that makes AI agents remember. 92% LongMemEval, 93.2% on LOCOMO. Works natively with LangChain, LlamaIndex, CrewAI, Google ADK, AutoGen, OpenAI Agents, Semantic Kernel, Haystack, and Pydantic AI. | [www.maximem.ai/synap](https://www.maximem.ai/synap) |
+| 4 | [Sankhya-AI/Dhee](https://github.com/Sankhya-AI/Dhee) | 32 | Python | 2026-07-03 | World memory for AI agents | [dhee.sankhyaailabs.com](https://dhee.sankhyaailabs.com) |
+| 5 | [campfirein/brv-bench](https://github.com/campfirein/brv-bench) | 13 | Python | 2026-05-11 | Benchmark suite for evaluating retrieval quality and latency of AI agent context systems | [www.byterover.dev](https://www.byterover.dev/) |
+| 6 | [HBarefoot/engram](https://github.com/HBarefoot/engram) | 7 | JavaScript | 2026-07-07 | 🧠 Persistent memory for AI agents. SQLite for agent state. Zero cloud dependencies. Local embeddings. MCP-native integration with Claude Desktop/Code, Cursor, Windsurf & more. |  |
+| 7 | [lsj5031/Remi](https://github.com/lsj5031/Remi) | 4 | Rust | 2026-04-23 | Unified memory layer for AI coding agents: incremental transcript sync, ranked search, archive/restore. |  |
+| 8 | [van-reflect/Reflect-Memory](https://github.com/van-reflect/Reflect-Memory) | 4 | TypeScript | 2026-07-06 | Vendor-neutral memory layer for AI agents. Give ChatGPT, Claude, Cursor, Gemini, and Grok shared persistent memory. TypeScript SDK, MCP server, REST API. | [reflectmemory.com](https://reflectmemory.com/) |
+| 9 | [huss-mo/GroundMemory](https://github.com/huss-mo/GroundMemory) | 3 | Python | 2026-05-26 | Persistent identity and memory across AI tools - mcp-native, local-first, framework-agnostic, production-ready. |  |
+| 10 | [Mneno-AI/Mneno](https://github.com/Mneno-AI/Mneno) | 2 | Python | 2026-06-26 | A memory layer for AI agents and applications that does more than just “remember”; it preserves useful, compact, and verifiable context over time. |  |
+| 11 | [mick-gsk/DevCD](https://github.com/mick-gsk/DevCD) | 2 | HTML | 2026-05-08 | Local-first Developer Context Daemon with explicit state, memory, and policy layers. | [mick-gsk.github.io/DevCD](https://mick-gsk.github.io/DevCD/) |
+| 12 | [Priyanshu-i/ContextCore](https://github.com/Priyanshu-i/ContextCore) | 2 | Python | 2025-03-10 | Ultimate memory layer for local LLM's ~ mitigate limitations of Context Window. |  |
+| 13 | [sarvanithin/poncho-memory](https://github.com/sarvanithin/poncho-memory) | 2 | Python | 2026-04-06 | Standalone memory middleware for the Poncho AI agent (FastAPI + SQLite + Claude Haiku). |  |
+| 14 | [gpitrella/memxus-remote-mcp](https://github.com/gpitrella/memxus-remote-mcp) | 2 | TypeScript | 2026-07-08 | MCP Memxus | [www.memxus.com](https://www.memxus.com/) |
+| 15 | [hekmon/go-honcho](https://github.com/hekmon/go-honcho) | 2 | Go | 2026-04-15 | Go bindings for Honcho - Persistent memory layer for AI applications. Type-safe API client for contextual conversation memory. |  |
+| 16 | [8Dionysus/aoa-memo](https://github.com/8Dionysus/aoa-memo) | 2 | Python | 2026-07-07 | Memory and recall layer for AoA: explicit memory objects, provenance threads, temporal relevance, salience, and reviewable recall contracts. |  |
+| 17 | [MakiDevelop/memory-hall](https://github.com/MakiDevelop/memory-hall) | 2 | Python | 2026-07-08 | The AI agent memory engine that deliberately stays small. SQLite + sqlite-vec + Ollama, CJK-native, three entry points. Apache 2.0. | [chiba.tw/DoYqCBGG](https://chiba.tw/DoYqCBGG) |
+| 18 | [JH-A-Kim/AdaptiveMemoryMesh](https://github.com/JH-A-Kim/AdaptiveMemoryMesh) | 1 | Python | 2026-03-23 | A memory layer for LLMs that extracts entities, relationships, and decisions from conversations and stores them in a semantic knowledge graph, giving any AI persistent, structured context across sessions. |  |
+| 19 | [Eleven-M/flowmind](https://github.com/Eleven-M/flowmind) | 1 | JavaScript | 2026-06-30 | Memory and workflow automation for MCP, Codex, and Claude Code. | [www.npmjs.com/package/flowmind](https://www.npmjs.com/package/flowmind) |
+| 20 | [yihemichael-wwc/corebrain-lite](https://github.com/yihemichael-wwc/corebrain-lite) | 1 | Python | 2026-05-01 | Lightweight, domain-agnostic Agent Brain Core — the memory layer for AI agents. Features: entity graph, dream cycle, merge audit, full-text search, web UI. | [github.com/yihemichael-wwc/corebrain-lite](https://github.com/yihemichael-wwc/corebrain-lite) |
+| 21 | [playtosor/m_AI_l](https://github.com/playtosor/m_AI_l) | 1 | Batchfile | 2026-05-25 | Asynchronous messaging between Claude threads — built entirely in Markdown. |  |
+| 22 | [5queezer/aver](https://github.com/5queezer/aver) | 1 | Rust | 2026-06-27 | Local-first, auditable memory layer for coding agents in Rust |  |
+| 23 | [aaronrene/knowtation](https://github.com/aaronrene/knowtation) | 1 | JavaScript | 2026-07-08 | Accurate context. Lowest cost. Your data. — vault-centric knowledge, memory consolidaton and cross topic insights for humans + agents, with CLI, MCP, and Hub. | [knowtation.store](https://knowtation.store) |
+| 24 | [Reattend/reattend-mcp](https://github.com/Reattend/reattend-mcp) | 1 | JavaScript | 2026-03-27 | Persistent memory for Claude, Cursor, and any AI assistant. MCP server that connects your meetings, Slack, Gmail, and notes to every AI tool you use. |  |
+| 25 | [Yaoniguan-Money/memory-garden](https://github.com/Yaoniguan-Money/memory-garden) | 1 | Python | 2026-06-17 | Local-first memory layer and memory skill for AI agents that mitigates long-context attention dilution with traceable retrieval, policy-aware memory lifecycle, and auditable forget. 面向 AI Agent 的本地优先记忆层与记忆 Skill，在应用层缓解长上下文注意力稀释与上下文遗忘，支持可追溯检索、策略化记忆生命周期与可审计遗忘 |  |
+| 26 | [LijiAlex/layered-memory](https://github.com/LijiAlex/layered-memory) | 1 | Python | 2026-06-17 | Memory plugin for Claude Code — persistent context from past sessions as markdown. No vector DB. | [github.com/LijiAlex/layered-memory#readme](https://github.com/LijiAlex/layered-memory#readme) |
+| 27 | [LabsKrishna/kalairos](https://github.com/LabsKrishna/kalairos) | 1 | JavaScript | 2026-07-03 | Durable, private, time-aware memory engine for long-running AI agents | [krishnalabs.ai](https://krishnalabs.ai) |
+| 28 | [kreasof-ai/sleep-AI](https://github.com/kreasof-ai/sleep-AI) | 0 |  | 2025-01-07 | Biologically Inspired Memory Management in AI: A Multi-Tiered Approach with Offline Consolidation |  |
+| 29 | [Ktopper/Undertow-assist](https://github.com/Ktopper/Undertow-assist) | 0 | Python | 2026-07-01 | A local-first agent memory layer that stores knowledge in Obsidian and audits every keep, distill, and retire decision. |  |
+| 30 | [H-XX-D/AIDDE](https://github.com/H-XX-D/AIDDE) | 0 | TypeScript | 2026-06-29 | AIDDE: Artificial Intelligence Driven Development Environment, the agent-native IDE rewrite with DD, memory preflight, audit, learning, and unlockable swag. | [github.com/H-XX-D/AIDDE](https://github.com/H-XX-D/AIDDE) |
+| 31 | [dahsmartgirl/oml-mvp](https://github.com/dahsmartgirl/oml-mvp) | 0 | JavaScript | 2025-11-22 | One memory layer for every AI chatbot. Save context once → use everywhere. Local-first, open source. |  |
+| 32 | [goal31121/BRV-Bench-Suite](https://github.com/goal31121/BRV-Bench-Suite) | 0 | Python | 2026-06-14 | About Benchmark suite for evaluating retrieval quality and latency of AI agent context systems | [www.byterover.dev](https://www.byterover.dev/) |
+| 33 | [changfamilyai/tokyo-brain](https://github.com/changfamilyai/tokyo-brain) | 0 | Python | 2026-04-04 | 🧠 Universal memory infrastructure for AI agents. Give your AI a memory that never forgets. | [tokyobrain.ai](https://tokyobrain.ai) |
+| 34 | [cait52099/openclaw_memory_fabric](https://github.com/cait52099/openclaw_memory_fabric) | 0 | Python | 2026-03-22 | Cross-host memory fabric for Claude and Codex, with provenance, recall, and unified CLI workflows. |  |
+| 35 | [lossless-group/study-memory-layers-for-agents](https://github.com/lossless-group/study-memory-layers-for-agents) | 0 |  | 2026-06-19 | A study of production memory systems for AI agents — storage topology, write policy, scopes, schema, and recall surface. |  |
+| 36 | [melvinprre/claude-memory-layer](https://github.com/melvinprre/claude-memory-layer) | 0 | Shell | 2026-06-21 | Memory layer Obsidian + Claude Code — install en 1h via super-prompt |  |
+| 37 | [vigilancetrent/chengeta-ai](https://github.com/vigilancetrent/chengeta-ai) | 0 | Python | 2026-06-13 | Chengeta AI is a unified memory and caching platform for AI agents, workflows, and autonomous systems. | [vigilancetrent.github.io/chengeta-ai](https://vigilancetrent.github.io/chengeta-ai) |
+| 38 | [aaronjohnson/advaita-smrti](https://github.com/aaronjohnson/advaita-smrti) | 0 | Python | 2026-06-20 | smrti (स्मृति) — non-dual memory for structured knowledge elicitation |  |
+| 39 | [neul-labs/memorg](https://github.com/neul-labs/memorg) | 0 | Python | 2026-07-02 | Give your LLM a memory that actually works. | [memorg.neullabs.com](https://memorg.neullabs.com) |
+| 40 | [Kenotic-Labs/.github](https://github.com/Kenotic-Labs/.github) | 0 |  | 2026-06-02 | Kenotic Labs builds the continuity layer for AI systems. The missing infrastructure between AI memory and AI relationship. |  |
+| 41 | [gowthamchoudhary/memoryOS](https://github.com/gowthamchoudhary/memoryOS) | 0 | TypeScript | 2026-05-28 | Context-aware memory resurfacing for the internet. MemoryOS captures why you saved content and intelligently resurfaces the right memory when it becomes relevant again. | [memoryos-one.vercel.app](https://memoryos-one.vercel.app) |
+| 42 | [pkmdev-sec/openclaw-mem](https://github.com/pkmdev-sec/openclaw-mem) | 0 | TypeScript | 2026-02-03 | Smart memory system for AI agents with vector search, automatic extraction, and cross-device sync |  |
+| 43 | [belay-ai/belay-context-engine](https://github.com/belay-ai/belay-context-engine) | 0 | Python | 2026-04-22 | Belay Protocol reference — deduplication engine, canonicalization, pluggable VectorStore. MIT. A component of Belay, memory for the AI you already have. |  |
 
-Tuning knobs and false-positive curation live in two more JSON files in `config/`.
+</details>
 
-### `config/queries.json` - what to search for
+### `"memory layer" in:description` - 76 prospects
 
-The list of GitHub search queries used when `--keywords` is not given. Any [GitHub repository search syntax](https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories) works: topics, description matches, quoted phrases, qualifiers. The shipped list targets the AI agent / LLM memory space and doubles as an example of the pattern: start from keyword-generated queries, then graduate to a hand-tuned list once you know which shapes find your market.
+<details>
+<summary><strong>Show table</strong></summary>
 
-```json
-[
-  "topic:agent-memory",
-  "\"memory layer\" llm in:description",
-  "\"long-term memory\" agent in:description"
-]
-```
+| # | Repository | Stars | Language | Last push | Description | Website |
+| ---: | --- | ---: | --- | --- | --- | --- |
+| 1 | [mem0ai/mem0](https://github.com/mem0ai/mem0) | 60,471 | Python | 2026-07-09 | Universal memory layer for AI Agents | [mem0.ai](https://mem0.ai) |
+| 2 | [memvid/memvid](https://github.com/memvid/memvid) | 15,738 | Rust | 2026-05-27 | Memory layer for AI Agents. Replace complex RAG pipelines with a serverless, single-file memory layer. Give your agents instant retrieval and long-term memory. | [www.memvid.com](https://www.memvid.com) |
+| 3 | [campfirein/byterover-cli](https://github.com/campfirein/byterover-cli) | 4,909 | TypeScript | 2026-06-25 | ByteRover CLI (brv) - The portable memory layer for autonomous coding agents (formerly Cipher) | [docs.byterover.dev](https://docs.byterover.dev/) |
+| 4 | [memodb-io/Acontext](https://github.com/memodb-io/Acontext) | 3,571 | JavaScript | 2026-06-30 | Agent Skills as a Memory Layer | [acontext.io](https://acontext.io) |
+| 5 | [MemMachine/MemMachine](https://github.com/MemMachine/MemMachine) | 3,298 | Python | 2026-07-09 | Universal memory layer for AI Agents. It provides scalable, extensible, and interoperable memory storage and retrieval to streamline AI agent state management for next-generation autonomous systems. | [memmachine.ai](https://memmachine.ai) |
+| 6 | [kingjulio8238/Memary](https://github.com/kingjulio8238/Memary) | 2,631 | Jupyter Notebook | 2024-10-22 | The Open Source Memory Layer For Autonomous Agents |  |
+| 7 | [silverstein/minutes](https://github.com/silverstein/minutes) | 1,325 | Rust | 2026-07-08 | Every meeting, every idea, every voice note — searchable by your AI. Open-source, privacy-first conversation memory layer. | [useminutes.app](https://useminutes.app) |
+| 8 | [mudler/LocalRecall](https://github.com/mudler/LocalRecall) | 845 | Go | 2026-06-26 | :brain: 100% Local Memory layer and Knowledge base for agents with WebUI |  |
+| 9 | [christopherkarani/Wax](https://github.com/christopherkarani/Wax) | 773 | Swift | 2026-07-06 | Single-file memory layer for AI agents, sub mili-second RAG on Apple Silicon. Metal Optimized On-Device. No Server. No API. One File. Pure Swift | [christopherkarani.github.io/Wax](https://christopherkarani.github.io/Wax/) |
+| 10 | [RichmondAlake/memorizz](https://github.com/RichmondAlake/memorizz) | 755 | Python | 2026-06-21 | MemoRizz: A Python library serving as a memory layer for AI applications. Leverages popular databases and storage solutions to optimize memory usage. Provides utility classes and methods for efficient data management. | [github.com/RichmondAlake/memorizz](https://github.com/RichmondAlake/memorizz) |
+| 11 | [sharpdeveye/maestro](https://github.com/sharpdeveye/maestro) | 400 | TypeScript | 2026-04-29 | Workflow fluency for AI coding agents. 1 core skill · 25 commands · 7 domain references · memory layer · audit trail — works across Cursor, Claude Code, Gemini CLI, Copilot, and 6 more. | [maestroskills.dev](https://maestroskills.dev) |
+| 12 | [facebookresearch/memory](https://github.com/facebookresearch/memory) | 378 | Python | 2024-12-12 | Memory layers use a trainable key-value lookup mechanism to add extra parameters to a model without increasing FLOPs. Conceptually, sparsely activated memory layers complement compute-heavy dense feed-forward layers, providing dedicated capacity to store and retrieve information cheaply. |  |
+| 13 | [elkimek/honcho-self-hosted](https://github.com/elkimek/honcho-self-hosted) | 338 | Shell | 2026-04-09 | Self-host Honcho memory layer for Hermes Agent — OpenRouter + Venice, no code changes |  |
+| 14 | [nhevers/MoltBrain](https://github.com/nhevers/MoltBrain) | 251 | TypeScript | 2026-03-25 | Long-term memory layer for OpenClaw & MoltBook agents that learns and recalls your project context automatically. |  |
+| 15 | [Eshaan-Nair/ArcRift](https://github.com/Eshaan-Nair/ArcRift) | 245 | TypeScript | 2026-07-07 | Persistent local memory layer for AI. ArcRift uses a extension and a native MCP server to sync context and decisions from your browser chats (Claude, ChatGPT, DeepSeek) straight to your local IDE agents (Cursor, Claude Code, Windsurf) powered by a local SQLite knowledge graph. | [arcrift.vercel.app](https://arcrift.vercel.app/) |
+| 16 | [yoloshii/ClawMem](https://github.com/yoloshii/ClawMem) | 191 | TypeScript | 2026-07-07 | On-device memory layer for AI agents. Claude Code, Hermes and OpenClaw. Hooks + MCP server + hybrid RAG search. |  |
+| 17 | [harrylettering/CodeMemory](https://github.com/harrylettering/CodeMemory) | 162 | TypeScript | 2026-04-29 | A memory layer for Claude Code |  |
+| 18 | [hellangleZ/Agent-MemoryForge](https://github.com/hellangleZ/Agent-MemoryForge) | 155 | Python | 2026-06-14 | Production-grade memory layer for AI agents with durable multi-tenant memory, semantic recall, async distillation, and SDK/Gateway integration. |  |
+| 19 | [GabrielMartinMoran/mind](https://github.com/GabrielMartinMoran/mind) | 114 | TypeScript | 2026-06-30 | Mind is an automated memory layer for AI workflows. Say goodbye to your agents amnesia! |  |
+| 20 | [linggen/linggen-memory](https://github.com/linggen/linggen-memory) | 108 | Rust | 2026-07-08 | A local-first memory layer for AI (Cursor, Zed, Claude). Persistent architectural context via semantic search. | [linggen.dev](https://linggen.dev) |
+| 21 | [yangzhongke/MemNet](https://github.com/yangzhongke/MemNet) | 85 | C# | 2025-12-22 | MemNet is a self‑improving memory layer for LLM applications for .NET developer. |  |
+| 22 | [sandst1/remind](https://github.com/sandst1/remind) | 80 | Python | 2026-07-04 | A memory layer for AI Agents | [sandst1.github.io/remind](https://sandst1.github.io/remind/) |
+| 23 | [Soul-Brews-Studio/arra-oracle-v3](https://github.com/Soul-Brews-Studio/arra-oracle-v3) | 76 | TypeScript | 2026-07-09 | Oracle v2 - MCP Memory Layer with semantic search, philosophy, and knowledge management |  |
+| 24 | [Papr-ai/memory-opensource](https://github.com/Papr-ai/memory-opensource) | 73 | Python | 2026-04-16 | Predictive memory layer for AI agents. MongoDB + Qdrant + Neo4j with multi-tier caching, custom schema support & GraphQL. 91% Stanford STARK accuracy, <100ms on-device retrieval | [papr.ai](https://papr.ai) |
+| 25 | [Pr0fe5s0r/StixDB](https://github.com/Pr0fe5s0r/StixDB) | 72 | Python | 2026-04-26 | A memory layer for AI agents that organizes itself |  |
+| 26 | [choihyunsus/soul](https://github.com/choihyunsus/soul) | 66 | TypeScript | 2026-04-02 | Soul: The Persistent Memory Layer for Multi-Agent Systems. High-performance session orchestration with SQLite-based KV-Cache for MCP. Give your AI agents a soul that never forgets. | [nton2.com](https://nton2.com) |
+| 27 | [moeru-ai/plast-mem](https://github.com/moeru-ai/plast-mem) | 65 | Rust | 2026-04-25 | ♻️💾 Yet Another Memory Layer, inspired by Cognitive Science, designed for Cyber Waifu | [deepwiki.com/moeru-ai/plast-mem](https://deepwiki.com/moeru-ai/plast-mem) |
+| 28 | [MehulG/memX](https://github.com/MehulG/memX) | 64 | Python | 2026-01-12 | A real-time shared memory layer for multi-agent LLM systems. |  |
+| 29 | [bitreonx/Mnestis](https://github.com/bitreonx/Mnestis) | 47 | TypeScript | 2026-06-28 | The memory layer for software — AI-ready codebase analysis | [Mnestis.vercel.app](https://Mnestis.vercel.app/) |
+| 30 | [smixs/autograph](https://github.com/smixs/autograph) | 45 | Python | 2026-07-05 | Typed memory layer for always-on agents (Claude Code, OpenClaw, Hermes, Codex). Schema-as-code for any Obsidian vault: decay engine, health scoring, link repair, MOC generation. |  |
+| 31 | [tstockham96/engram](https://github.com/tstockham96/engram) | 42 | TypeScript | 2026-05-04 | Universal memory layer for AI agents. Remember, recall, consolidate. |  |
+| 32 | [zjunlp/MemBase](https://github.com/zjunlp/MemBase) | 41 | Python | 2026-06-29 | A Comprehensive Benchmarking Framework for Long-Term Conversational Memory Layers |  |
+| 33 | [mem7ai/mem7](https://github.com/mem7ai/mem7) | 38 | Rust | 2026-03-26 | Memory layer for AI Agents and OpenClaw powered by Rust | [mem7.ai](https://mem7.ai/) |
+| 34 | [codegraph-ai/CodeGraph](https://github.com/codegraph-ai/CodeGraph) | 35 | C | 2026-07-02 | CodeGraph builds a semantic graph of your codebase — functions, classes, imports, call chains — and exposes it through 42 MCP tools, 38 languages, a VS Code extension, and a persistent memory layer. AI agents get structured code understanding instead of grepping through files. |  |
+| 35 | [Opendray/opendray](https://github.com/Opendray/opendray) | 34 | Dart | 2026-07-09 | Self-hosted gateway for Claude Code, Codex, Antigravity, Grok Build, OpenCode. Run AI coding agents on your own infra with a shared local-first memory layer. Drive from web, mobile, Telegram / Slack / Discord / Feishu / DingTalk / WeCom. Open REST + WebSocket API. Apache 2.0. | [opendray.dev](https://opendray.dev) |
+| 36 | [unbody-io/adapt](https://github.com/unbody-io/adapt) | 31 | TypeScript | 2026-06-29 | A self-evolving memory layer for LLMs. | [adapt.unbody.io](https://adapt.unbody.io) |
+| 37 | [MarceloCaporale/codex-agent-mem](https://github.com/MarceloCaporale/codex-agent-mem) | 31 | Python | 2026-05-07 | Local-first Model Context Protocol (MCP) memory layer for Codex CLI/Desktop, Claude Code, Gemini CLI, Qwen/DeepSeek/Ollama and agent workflows. SQLite + FTS5 compact context packs, token savings, read-only mode, no external memory server. | [marcelocaporale.github.io/codex-agent-mem](https://marcelocaporale.github.io/codex-agent-mem/) |
+| 38 | [kstonekuan/squash-browser-memory](https://github.com/kstonekuan/squash-browser-memory) | 30 | TypeScript | 2025-09-22 | Squash adds an invisible memory layer to your browser, compressing every click into portable context for any AI agent | [www.trysquash.dev](https://www.trysquash.dev/) |
+| 39 | [hurttlocker/cortex](https://github.com/hurttlocker/cortex) | 29 | Go | 2026-03-27 | Import-first, zero-dependency, observable memory layer for AI agents |  |
+| 40 | [phenomenoner/openclaw-mem](https://github.com/phenomenoner/openclaw-mem) | 28 | Python | 2026-07-07 | The AI agent memory layer you can audit — local-first memory governance for AI agents: citations, trust policies, trace receipts, rollback. SQLite, sidecar-first, OpenClaw plugin. | [phenomenoner.github.io/openclaw-mem](https://phenomenoner.github.io/openclaw-mem/) |
+| 41 | [synchopate/cybergym-logos](https://github.com/synchopate/cybergym-logos) | 27 |  | 2026-06-25 | CyberGym submission: Claude Opus 4.6 + Crystalline cognitive memory layer. 89.6% pass@1, submitted to UC Berkeley May 2026. |  |
+| 42 | [Abhigyan-Shekhar/Waggle-mcp](https://github.com/Abhigyan-Shekhar/Waggle-mcp) | 26 | Python | 2026-07-08 | MCP server for external memory layer for AI agents + more . Download from pypi , and get started | [pypi.org/project/waggle-mcp](https://pypi.org/project/waggle-mcp/) |
+| 43 | [spring-ai-community/spring-ai-session](https://github.com/spring-ai-community/spring-ai-session) | 25 | Java | 2026-06-20 | Structured, event-sourced conversation memory layer for Spring AI applications. | [spring-ai-community.github.io/spring-ai-session](https://spring-ai-community.github.io/spring-ai-session/) |
+| 44 | [MnemoDev/Engram](https://github.com/MnemoDev/Engram) | 25 | TypeScript | 2026-06-22 | Persistent RAG memory layer for AI agents - store observations, retrieve context by semantic similarity, self-prune on TTL |  |
+| 45 | [Z-Sigma/neuron](https://github.com/Z-Sigma/neuron) | 24 | Python | 2026-05-16 | Cognitive memory layer for AI applications |  |
+| 46 | [memfuse/memfuse](https://github.com/memfuse/memfuse) | 24 | Python | 2025-10-13 | Official Core Services for MemFuse - the lightning-fast open-source memory layer that gives LLMs persistent, queryable memory across conversations and sessions. | [memfuse.vercel.app](https://memfuse.vercel.app/) |
+| 47 | [geanatz/curion](https://github.com/geanatz/curion) | 23 | TypeScript | 2026-07-05 | Curion is a project-local memory layer for AI coding agents, published as an MCP server for Claude Code, Codex, OpenCode, and other MCP clients. | [www.npmjs.com/package/@geanatz/curion](https://www.npmjs.com/package/@geanatz/curion) |
+| 48 | [manujbawa/minime-mcp](https://github.com/manujbawa/minime-mcp) | 22 | JavaScript | 2026-02-11 | Universal infinite memory layer for Developer AI assistants. One shared brain across Claude, Cursor, Windsurf & more. 100% local, built on MCP standard. Stop re-explaining context | [recallium.ai](https://recallium.ai) |
+| 49 | [mrizkiiy04/1Mbrain](https://github.com/mrizkiiy04/1Mbrain) | 21 | TypeScript | 2026-06-26 | a portable, semantic graph memory layer for AI agents. |  |
+| 50 | [fjwood69/mori](https://github.com/fjwood69/mori) | 21 | Python | 2026-07-05 | mori MCP server — a governed memory layer for AI coding agents. | [moriapp.dev](https://moriapp.dev/) |
+| 51 | [veerps57/memento](https://github.com/veerps57/memento) | 21 | TypeScript | 2026-05-17 | A local-first, LLM-agnostic memory layer for AI assistants | [runmemento.com](https://runmemento.com/) |
+| 52 | [sobowalebukola/memcortex](https://github.com/sobowalebukola/memcortex) | 21 | Go | 2026-04-12 | Memcortex is a lightweight semantic memory layer for LLMs using open source embedding model and Weaviate for vector storage and retrieval. | [www.memcortex.ai](https://www.memcortex.ai) |
+| 53 | [memodb-io/skill-memory](https://github.com/memodb-io/skill-memory) | 20 | TypeScript | 2026-01-30 | agent skill as memory layer |  |
+| 54 | [Vibhor7-7/Cortex-CxC](https://github.com/Vibhor7-7/Cortex-CxC) | 19 | HTML | 2026-03-01 | Cortex is a 3D visual memory layer for AI chats that summarizes relevant past conversations using Hydrid search (keyword + semantic) and feeds relevant content to the LLM via Custom MCP so users never start a chat from scratch again. |  |
+| 55 | [MemaryAI/MemaryAI](https://github.com/MemaryAI/MemaryAI) | 19 | Python | 2024-12-13 | This is an open-source project that provides an efficient memory layer for autonomous AI agents, helping AI agents better manage and utilize information by simulating how human memory works |  |
+| 56 | [Memel06/mnemonio](https://github.com/Memel06/mnemonio) | 18 | TypeScript | 2026-04-03 | A persistent file-first memory layer for LLM agents, optimized for developer workflows. | [mnemonio.com](https://mnemonio.com) |
+| 57 | [braincompany/sessiongrep](https://github.com/braincompany/sessiongrep) | 18 | Rust | 2026-06-19 | Local-first memory layer for CLI agents. Indexes Claude Code, Codex CLI, and Cursor session histories into SQLite + FTS5 — searchable from a CLI, TUI, or MCP server so your next agent session can recall the last one. |  |
+| 58 | [groupzer0/flowbaby](https://github.com/groupzer0/flowbaby) | 17 | TypeScript | 2026-01-26 | A persistent memory layer for AI coding in VS Code — no drift, no drama. Not chat history. Not bigger prompts. Not huge markdown files. Real memory across Copilot sessions. (Best experienced with the Flowbaby Agent Team.) | [www.flowbaby.ai](https://www.flowbaby.ai) |
+| 59 | [tt-a1i/evermemos-mcp](https://github.com/tt-a1i/evermemos-mcp) | 16 | Python | 2026-07-09 | Universal long-term memory layer for AI coding assistants, powered by EverMemOS. | [pypi.org/project/evermemos-mcp](https://pypi.org/project/evermemos-mcp/) |
+| 60 | [Fail-Safe/Noema](https://github.com/Fail-Safe/Noema) | 16 | Go | 2026-07-04 | The intentional memory layer for your AI agents. | [noemacortex.com](https://noemacortex.com) |
+| 61 | [samhotchkiss/openclaw-pearl](https://github.com/samhotchkiss/openclaw-pearl) | 16 | TypeScript | 2026-02-02 | Memory layer and intelligent model router for OpenClaw |  |
+| 62 | [iflytek/memflywheel](https://github.com/iflytek/memflywheel) | 16 | TypeScript | 2026-07-06 | memflywheel is a file-native long-term memory layer for AI Agents, and a memory foundation component inside an Agent Harness. |  |
+| 63 | [remembra-ai/remembra](https://github.com/remembra-ai/remembra) | 15 | HTML | 2026-06-28 | Universal memory layer for AI applications. Self-host in minutes. Open source. | [remembra.dev](https://remembra.dev) |
+| 64 | [besslframework-stack/project-tessera](https://github.com/besslframework-stack/project-tessera) | 15 | Python | 2026-03-21 | Tessera — Memory layer for every AI. 58 MCP tools, 54 REST endpoints, local-first, AES-256 encrypted. | [tessera-dev.vercel.app](https://tessera-dev.vercel.app) |
+| 65 | [AliceLJY/recallnest](https://github.com/AliceLJY/recallnest) | 15 | TypeScript | 2026-07-06 | One memory, three terminals. Shared memory layer for Claude Code, Codex, and Gemini CLI — hybrid retrieval (vector + BM25 + KG), session continuity, 41 MCP tools. Local-first, LanceDB-backed. |  |
+| 66 | [Lumen-Labs/brainapi](https://github.com/Lumen-Labs/brainapi) | 14 | Python | 2025-10-18 | Open Source Memory Layer for Your AI |  |
+| 67 | [trietdeptrai/Byterover-Claude-Codex-Collaboration-](https://github.com/trietdeptrai/Byterover-Claude-Codex-Collaboration-) | 14 | Shell | 2025-10-31 | A Claude Skill for Claude and Codex workflow, with Byterover as a shared memory layer |  |
+| 68 | [64envy64/tracebase](https://github.com/64envy64/tracebase) | 14 | TypeScript | 2026-06-03 | The runtime memory layer for AI agents. Atomic writes, in-narrative time, first-class deletion - so agent intelligence compounds over next runs. | [tracebase.ink](https://tracebase.ink) |
+| 69 | [Larkspur-Wang/memBook](https://github.com/Larkspur-Wang/memBook) | 14 | Python | 2026-04-11 | Progressive memory layer for AI agents with Header+Content indexing, chain recall, and file-first governance. | [github.com/Larkspur-Wang/memBook](https://github.com/Larkspur-Wang/memBook) |
+| 70 | [deeflect/dory](https://github.com/deeflect/dory) | 14 | Python | 2026-06-10 | One memory layer for every AI agent. Local-first, markdown source of truth, and CLI/HTTP/MCP native. Your agent forgot who you are. Again. Dory fixes that. | [dory.deeflect.com](https://dory.deeflect.com) |
+| 71 | [BrainInBox/brain-in-a-box](https://github.com/BrainInBox/brain-in-a-box) | 14 | Shell | 2026-06-29 | A personal second brain for Claude Code — and a shared memory layer for mixed AI + human teams. Markdown vault + auto-capture + semantic search. Composes with gstack, openclaw, Hermes. One command. macOS, MIT. |  |
+| 72 | [echonoshy/replica](https://github.com/echonoshy/replica) | 13 | Python | 2026-04-22 | Memory layer for AI. |  |
+| 73 | [atomsai/contextdb](https://github.com/atomsai/contextdb) | 12 | Python | 2026-04-23 | ContextDB is unified memory layer for agents |  |
+| 74 | [tessellate-digital/notion-agent-hive](https://github.com/tessellate-digital/notion-agent-hive) | 12 | TypeScript | 2026-04-14 | Using notion as coordinator and persistent memory layer |  |
+| 75 | [albertofettucini/Engram](https://github.com/albertofettucini/Engram) | 12 | Swift | 2026-06-20 | One shared memory for all your AIs — a local-first, native macOS memory layer (MCP). |  |
+| 76 | [kiranklabs/hermes-memory-wiki](https://github.com/kiranklabs/hermes-memory-wiki) | 12 | TypeScript | 2026-05-29 | A browsable, searchable memory layer for Hermes AI agent conversations — automatically captured, summarized, and injected as context into every new session. | [github.com/kiranklabs/hermes-memory-wiki](https://github.com/kiranklabs/hermes-memory-wiki) |
 
-> [!TIP]
-> Cast a wide net with overlapping queries. Results are deduplicated across queries, and each stored record remembers which query first discovered it (`discovered_via_query`), which helps you evaluate query quality over time.
+</details>
 
-### `config/thresholds.json` - tuning knobs
-
-Rate limiting, concurrency, and fetch-depth settings:
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `minStars` | `10` | Minimum star count (reserved; relevance filtering is currently disabled) |
-| `maxMonthsSincePush` | `6` | Staleness cutoff (reserved; relevance filtering is currently disabled) |
-| `searchPerPage` | `100` | Results fetched per search query |
-| `searchDelayMsAuthed` | `2500` | Delay between search queries with a token |
-| `searchDelayMsUnauthed` | `7000` | Delay between search queries without a token |
-| `enrichConcurrency` | `5` | Repos enriched in parallel |
-| `commitActivityMaxRetries` | `3` | Retries while GitHub computes commit stats (HTTP 202) |
-| `commitActivityRetryDelayMs` | `2000` | Delay between those retries |
-| `recentCommitsPerPage` | `20` | Recent commits captured per repo |
-| `releasesPerPage` | `10` | Releases captured per repo |
-| `contributorsPerPage` | `30` | Contributors captured per repo |
-
-> [!NOTE]
-> Automatic relevance filtering (stars/staleness) in `lib/discover.js` is currently disabled, so all discovered repos flow through for manual review. Curate the list with `exclusions.json` instead.
-
-### `config/exclusions.json` - curated false positives
-
-A map of `owner/repo` to a short reason, for repositories that match the queries but are not actually competitors (general agent frameworks, databases marketing to agent workloads, and so on). Excluded repos are dropped during the discover stage. The reasons are documentation for your future self. The shipped entries belong to the example agent-memory queries - when retargeting to your own market, start from `{}`.
-
-```json
-{
-  "langchain-ai/langchain": "framework, memory is a submodule",
-  "pingcap/tidb": "database marketing to agent workloads"
-}
-```
-
-**Recommended workflow:** after each run, review the "new since last snapshot" list in the run summary and add any false positives here with a one-line reason.
-
-## Data model
-
-`competitors.db` contains two tables, both keyed by `(full_name, snapshot_date)`:
-
-| Table | Contents |
-| --- | --- |
-| `repos` | One row per repo per snapshot: stars, forks, issues, watchers, topics, per-language byte counts, license, contributor counts, release info, weekly commit activity, recent commits, and the query that discovered it. Array and object fields are stored as JSON strings. |
-| `readmes` | Full README markdown per repo per snapshot, kept in its own table so the main table stays light for querying. |
-
-Because snapshots accumulate, longitudinal queries are trivial:
-
-```sql
--- Star growth of one repo over time
-SELECT snapshot_date, stargazers_count
-FROM repos
-WHERE full_name = 'some-org/some-repo'
-ORDER BY snapshot_date;
-```
-
-```sql
--- Fastest-growing repos between the two most recent snapshots
-WITH latest AS (SELECT MAX(snapshot_date) d FROM repos),
-     prev   AS (SELECT MAX(snapshot_date) d FROM repos WHERE snapshot_date < (SELECT d FROM latest))
-SELECT a.full_name,
-       b.stargazers_count - a.stargazers_count AS stars_gained
-FROM repos a
-JOIN repos b ON b.full_name = a.full_name AND b.snapshot_date = (SELECT d FROM latest)
-WHERE a.snapshot_date = (SELECT d FROM prev)
-ORDER BY stars_gained DESC
-LIMIT 20;
-```
-
-## Project layout
-
-```text
-github-prospecting/
-├── run.js                  # Full pipeline entry point (discover -> enrich -> store)
-├── run-fast.js             # Discover-only entry point (CSV straight from search)
-├── lib/
-│   ├── github.js           # Shared REST client: auth, rate limits, retries
-│   ├── queries.js          # Query resolution: keywords -> queries, or queries.json
-│   ├── discover.js         # Stage 1: search, dedupe, filter exclusions, sort
-│   ├── enrich.js           # Stage 2: per-repo metadata fetch
-│   └── store.js            # Stage 3: SQLite snapshot + CSV export
-├── config/
-│   ├── queries.json        # Search queries defining the space
-│   ├── thresholds.json     # Rate limits and fetch-depth tuning
-│   └── exclusions.json     # Known false positives, with reasons
-├── competitors.db          # Generated: snapshot history (gitignored)
-└── competitors.csv         # Generated: latest star-ranked summary (gitignored)
-```
-
-## Rate limits
-
-GitHub's API limits are the main constraint on this pipeline, and it is built to respect them:
-
-| | Authenticated | Unauthenticated |
-| --- | --- | --- |
-| Core API | 5,000 requests/hour | 60 requests/hour |
-| Search API | 30 requests/minute | 10 requests/minute |
-
-- **Always run with `GITHUB_TOKEN` set.** An unauthenticated full run is effectively impractical beyond a handful of repos.
-- **Primary limits are handled automatically.** On a 403/429 the client sleeps until `x-ratelimit-reset` and retries, so long runs recover on their own.
-- **Secondary (abuse) limits** can still trigger during enrichment at high candidate volume. If that happens, lower `enrichConcurrency` in `config/thresholds.json` or use `run-fast.js`.
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| Run is extremely slow, long pauses between queries | No `GITHUB_TOKEN` set | Export a token; authenticated search delay drops from 7s to 2.5s per query |
-| Repeated `rate limited on ...` messages during enrichment | GitHub secondary rate limit | Lower `enrichConcurrency`, or switch to `node run-fast.js` |
-| `weekly_commits` is `null` for some repos | GitHub returns 202 while computing stats and retries were exhausted | Re-run later; stats are usually cached by GitHub after the first request |
-| `skipping <repo>: repo metadata fetch failed` | Repo was deleted or made private between discovery and enrichment | Expected; the repo is dropped from the snapshot |
-| A repo you know is irrelevant keeps appearing | It matches a query | Add it to `config/exclusions.json` with a reason |
